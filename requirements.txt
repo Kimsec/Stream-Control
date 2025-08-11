@@ -1,0 +1,4 @@
+Flask
+obsws-python
+python-dotenv
+requests

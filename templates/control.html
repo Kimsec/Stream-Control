@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>Stream Control</title>
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#000000">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Stream Control">
+    <link rel="apple-touch-icon" sizes="192x192" href="https://kimsec.net/download/caxyhh/icon-192.png">
+    <link rel="icon" type="image/png" href="https://kimsec.net/download/caxyhh/icon_logo.png" />
+    <link rel="manifest" href="https://kimsec.net/download/caxyhh/manifest.json">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div id="audio-permission-banner" style="background-color: #81029b; color: white; padding: 15px; text-align: center; cursor: pointer; font-size: 18px;">
+        🔊 Click here to enable sound for alerts
+    </div>
+    <!-- Tab knappene -->
+    <div class="tab-container">
+        <div class="tab active" data-tab="minipc">MPC</div>
+        <div class="tab" data-tab="obs">OBS</div>
+        <div class="tab" data-tab="belabox">Bela</div>
+        <div class="tab" data-tab="chat">Chat</div>
+    </div>
+
+    <!-- MiniPC-fane -->
+    <div id="minipc" class="tab-content active">
+        <div class="button-container">
+            <p id="minipcStatus" class="status">Checking status...</p>
+            <button id="turnOnBtn" onclick="turnOnMiniPC()">Turn On</button>
+            <button id="turnOffBtn" onclick="turnOffMiniPC()">Shutdown</button>
+            <button id="restartBtn" onclick="restartMiniPC()">Restart</button>
+        </div>
+    </div>
+
+    <!-- OBS-fane -->
+    <div id="obs" class="tab-content">
+        <div class="button-container">
+            <p id="streamStatus" class="status">Status: Unknown</p>
+            <p id="obsScene" class="status">Scene: Unknown</p>
+            <button id="startStreamBtn" onclick="sendRequest('/obs/start_stream')">Start Stream 🟢</button>
+            <button id="stopStreamBtn" onclick="stopStream()" style="display: none;">Stop Stream 🔴</button>
+            <button onclick="switchToLive()">Switch to 'LIVE' Scene</button>
+            <button onclick="switchToBRB()">Switch to 'BRB' Scene</button>
+            <button id="showStreamTitleInput" onclick="showStreamTitleForm()">Update Stream Title</button>
+            <button id="showRaidChannelInput" onclick="showRaidChannelForm()">Raid Channel</button>
+            <button id="restreamBtn">Restream ⚙️</button>
+            <div id="streamTitleForm" style="display: none; margin-top: 10px;">
+                <input type="text" id="streamTitleInput" placeholder="Enter new stream title" style="font-size: 20px; padding: 8px; width: 100%; max-width: 300px; text-align: center;">
+                <input type="text" id="categorySearchInput" placeholder="Search for category" style="font-size: 20px; padding: 8px; width: 100%; max-width: 300px; text-align: center; margin-top: 10px;" oninput="searchCategory()">
+                <div id="categoryResults" style="margin-top: 10px;"></div>
+                <div style="margin-top: 2px; display: flex; justify-content: center; gap: 1px;">
+                    <button style="font-size: 24px; padding: 5px 10px;" onclick="applyStreamTitle()">Apply</button>
+                    <button style="font-size: 24px; padding: 5px 10px;" onclick="cancelStreamTitle()">Cancel</button>
+                </div>
+            </div>
+            <div id="raidChannelForm" style="display: none; margin-top: 10px;">
+                <input type="text" id="raidChannelInput" placeholder="Enter channel name to raid" style="font-size: 20px; padding: 8px; width: 100%; max-width: 300px; text-align: center;">
+                <div style="margin-top: 2px; display: flex; justify-content: center; gap: 1px;">
+                    <button style="font-size: 24px; padding: 5px 10px;" onclick="applyRaid()">Raid</button>
+                    <button style="font-size: 24px; padding: 5px 10px;" onclick="cancelRaid()">Cancel</button>
+                </div>
+            </div>
+                    <!-- Skjult seksjon for restream-opsjoner -->
+            <div id="restreamOptions" style="display:none; margin-top:20px; text-align:left;">
+  <h3 style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+    Platforms:
+    <span class="tooltip">
+      <button id="platformsHelp" class="tooltip-button" aria-haspopup="true" aria-expanded="false">(?)</button>
+      <div id="platformsTooltip" class="tooltip-panel" role="dialog" aria-label="RTMP formats help">
+        <strong>RTMP formats</strong>
+        <ul style="margin:8px 0 0 16px; padding:0;">
+          <li><b>Twitch</b>: <code>rtmp://TWITCH-INGEST-SERVER/app/STREAM_KEY</code></li>
+          <li><b>Kick</b>: <code>rtmp://127.0.0.1:19360/PATH/STREAM_KEY</code></li>
+          <li><b>Youtube</b>: <code>rtmp://STREAM-URL/STREAM-KEY</code></li>
+        </ul>
+        <p style="margin:8px 0 0; color:#bdbdbd;">Replace PATH/STREAM_KEY with your values.</p>
+      </div>
+    </span>
+  </h3>
+  <div id="endpointsList"><!-- JS fills here --></div>
+  <button id="addEndpoint" style="font-size:24px; padding:5px 10px; margin-top:10px;">Add New Line</button>
+  <div style="margin-top:20px; display:flex; justify-content:center; gap:10px;">
+      <button id="saveRestream" style="font-size:24px; padding:5px 10px;">Save</button>
+      <button id="cancelRestream" style="font-size:24px; padding:5px 10px;">Cancel</button>
+  </div>
+</div>
+        </div>
+    </div>
+
+    <!-- Belabox-fane -->
+    <div id="belabox" class="tab-content" style="padding:0;">
+        <div id="belabox-container" style="width: 100%; height: 100vh;">
+            <iframe src="https://belabox.kimsec.net" style="width: 100%; height: 100%; border: none;" allowfullscreen></iframe>
+        </div>
+    </div>
+
+    <!-- Chat-fane -->
+    <div id="chat" class="tab-content">
+        <div id="chat-container">
+            <!-- Twitch Chat iFrame will be inserted here -->
+        </div>
+    </div>
+    <!-- Skjult alertbox for lyd/varsler -->
+    <iframe id="alertbox-iframe" src="https://streamelements.com/overlay/60455a2e72dba40e07a947fe/cMQQvgWouVphlojJFWRDPUMTeCiorUTgYJzZqgCu29V3jY0p" allow="autoplay" style="width:1px;height:1px;opacity:0;position:absolute;left:-9999px;" tabindex="-1"></iframe>
+
+    <footer id="main-footer">
+        Kimsec © <span id="year"></span> <span style="color: #d14;">♥</span>
+    </footer>
+    <script src="{{ url_for('static', filename='main.js') }}" defer></script>
+</body>
+</html>

@@ -1,0 +1,369 @@
+html {
+    font-size: 16px; /* Standard font-størrelse */
+}
+
+body {
+    background-color: black;
+    color: white;
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Chat fanen fullskjerm uten scroll */
+#chat.tab-content.active {
+    position: absolute;
+    top: 55px; /* høyden på .tab-container */
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: auto;
+    padding: 0;
+    margin: 0;
+}
+
+/* Chat container fyller hele området */
+#chat-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* Twitch chat iframe justert for å skjule toppen */
+#twitch-chat-iframe {
+    position: absolute;
+    top: -105px; /* skjul toppelementene */
+    left: 0;
+    width: 100%;
+    height: calc(100% + 105px); /* strekk for å kompensere */
+    border: none;
+}
+
+.button-container {
+    max-width: 800px;
+    margin: 0 auto;
+    text-align: center;
+}
+button {
+    font-size: 1.5rem; /* Bruk rem for å skalere basert på root-font-størrelse */
+    padding: 1rem 2rem;
+    margin: 10px;
+    border-radius: 10px;
+    width: auto;
+    max-width: 100px;
+}
+@media (min-width: 500px) {
+    button {
+        font-size: 1.5rem;
+        padding: 8px 16px;
+    }
+}
+@media (max-width: 768px) {
+    button {
+        font-size: 1rem;
+        padding: 0.5rem 1rem;
+    }
+}
+/* Faner (Tabs) styling */
+.tab-container {
+    display: flex;
+    justify-content: center;
+    background-color: #222;
+    gap: 0px;
+    flex-wrap: nowrap;
+    width: 100%;
+    z-index: 10;
+    position: relative;
+}
+.tab {
+    color: #888; /* Lysere grå for inaktive faner */
+    padding: 15px 10px;
+    cursor: pointer;
+    font-size: 20px;
+    border-bottom: 2px solid transparent;
+    flex: 1;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    position: relative;
+    z-index: 11;
+}
+.tab.active {
+    color: white; /* Hvit tekst for aktiv fane */
+    border-bottom: 2px solid #81029b; /* Lilla linje under aktiv fane */
+}
+/* Innholdsområdene for fanene */
+.tab-content {
+    flex-grow: 1;
+    display: none;
+    padding: 20px;
+    text-align: center;
+}
+.tab-content.active {
+    display: block;
+}
+/* Chat-spesifikk styling for å fjerne padding */
+#chat.tab-content {
+    padding: 0;
+}
+/* Generell styling for knapper og status */
+.button-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+button {
+    background-color: #4b4b4b;
+    color: white;
+    border: none;
+    padding: 20px 40px;
+    margin: 15px;
+    font-size: 20px;
+    cursor: pointer;
+    border-radius: 15px;
+    width: 80%;
+    max-width: 600px;
+}
+button:hover {
+    background-color: #81029b;
+}
+.status {
+    font-size: 30px;
+    margin: 20px;
+}
+.on {
+    color: limegreen;
+}
+.off {
+    color: red;
+}
+footer {
+    width: 100%;
+    height: 40px;
+    text-align: center;
+    font-size: 16px;
+    color: #ccc;
+    padding: 0 0;
+}
+@media (min-width: 600px) {
+    button {
+        font-size: 24px;
+        padding: 25px 50px;
+        width: 45%;
+        max-width: none;
+    }
+    .status {
+        font-size: 32px;
+    }
+    .tab {
+        font-size: 28px;
+    }
+    footer {
+        font-size: 18px;
+    }
+}
+
+/* Oppdater CSS for endpoint styling med mer spesifisitet */
+.endpoint-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+    flex-wrap: nowrap;
+}
+
+/* Mobiloptimalisering for restream */
+@media (max-width: 768px) {
+    #restreamOptions {
+        padding: 10px;
+        margin: 0 auto;
+        text-align: left;
+    }
+    #restreamOptions h3 {
+        font-size: 16px;
+        margin-bottom: 10px;
+        word-wrap: break-word; /* Sikrer at teksten brytes hvis nødvendig */
+    }
+    .endpoint-row {
+        display: flex;
+        flex-wrap: wrap; /* Tillater bryting av linjer */
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    .endpoint-row input[type="checkbox"] {
+        margin-right: 5px;
+        flex-shrink: 0; /* Hindrer krymping */
+        width: 20px;
+        height: 20px;
+    }
+    .endpoint-row input[type="text"] {
+        margin-right: 5px;
+        padding: 5px;
+        font-size: 14px;
+        flex: 1; /* Gir fleksibilitet til tekstfeltene */
+    }
+    .endpoint-row button {
+        font-size: 14px;
+        padding: 5px;
+        margin-left: 5px;
+        flex-shrink: 0; /* Hindrer krymping */
+    }
+    #addEndpoint {
+        font-size: 14px;
+        padding: 5px 10px;
+        margin-top: 10px;
+    }
+    #saveRestream, #cancelRestream {
+        font-size: 14px;
+        padding: 10px 15px;
+        margin-top: 10px;
+    }
+}
+
+.endpoint-row input[type="text"] {
+    margin-right: 5px;
+    padding: 5px;
+    font-size: 16px;
+}
+/* Mer spesifikk selektor for navn-feltet (andre barn etter checkbox) */
+.endpoint-row input[type="text"]:nth-child(2) {
+    flex: 0 0 100px !important; /* Fast bredde på 100px for navn-feltet */
+    min-width: 100px;
+    max-width: 100px;
+}
+/* Mer spesifikk selektor for URL-feltet (tredje barn etter checkbox) */
+.endpoint-row input[type="text"]:nth-child(3) {
+    flex: 1 !important; /* URL-feltet tar resten av plassen */
+    min-width: 200px;
+}
+.endpoint-row button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    margin-left: 2px;
+    padding: 2px;
+    min-width: 24px;
+    height: 24px;
+}
+.endpoint-row button:hover {
+    background-color: rgba(129, 2, 155, 0.2);
+    border-radius: 3px;
+}
+#addEndpoint {
+    font-size: 16px !important;
+    padding: 5px 8px !important;
+    margin-top: 10px;
+    width: auto !important;
+    max-width: none !important;
+}
+
+/* Tooltip */
+.tooltip {
+  display: inline-block;
+  position: relative;
+  margin-left: 6px;
+}
+.tooltip-button {
+  background: none;
+  border: 0;
+  color: #9aa0a6;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 2px;
+  line-height: 1;
+  text-decoration: underline;
+}
+.tooltip-button:hover { color: #ffffff; }
+.tooltip-panel {
+  position: absolute;
+  top: 22px;
+  left: 0;
+  z-index: 1000;
+  display: none;
+  width: min(92vw, 360px);
+  background: #141414;
+  color: #e6e6e6;
+  border: 1px solid #2d2d2d;
+  border-radius: 6px;
+  box-shadow: 0 10px 20px rgba(0,0,0,0.35);
+  padding: 8px 10px;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+.tooltip-panel.show { display: block; }
+.tooltip-panel code {
+  background: #0d0d0d;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size: 0.88em;
+}
+.tooltip-panel a { color: #7cc7ff; text-decoration: none; }
+.tooltip-panel a:hover { text-decoration: underline; }
+
+/* REMOVE old flex-based endpoint-row rules and nth-child width rules over this comment:
+   - .endpoint-row { display:flex ... }
+   - .endpoint-row input[type="text"]:nth-child(2|3) { ... }
+*/
+
+/* Restream endpoints layout (clean, grid-based) */
+.endpoint-row {
+  display: grid;
+  grid-template-columns: auto minmax(100px,120px) 1fr auto auto; /* checkbox | name | url | edit | delete */
+  align-items: center;
+  column-gap: 6px;
+  margin-bottom: 10px;
+}
+.endpoint-row input[type="checkbox"] { width: 18px; height: 18px; }
+.endpoint-row input[type="text"] {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 16px;
+}
+.endpoint-row button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 2px 4px;
+  height: 24px;
+}
+.endpoint-row button:hover {
+  background-color: rgba(129, 2, 155, 0.15);
+  border-radius: 4px;
+}
+
+/* Mobile tweaks */
+@media (max-width: 768px) {
+  #restreamOptions { padding: 10px; }
+  #restreamOptions h3 { font-size: 16px; margin: 8px 0 10px; }
+  .endpoint-row {
+    grid-template-columns: auto minmax(74px,90px) 1fr auto auto;
+    column-gap: 5px;
+  }
+  .endpoint-row input[type="checkbox"] { width: 20px; height: 20px; }
+  .endpoint-row input[type="text"] { font-size: 14px; padding: 5px 6px; }
+  .endpoint-row button { font-size: 14px; height: 22px; padding: 1px 4px; }
+  #saveRestream, #cancelRestream, #addEndpoint { font-size: 14px; padding: 8px 12px; }
+}
+
+/* Tooltip: ensure it never clips on mobile */
+.tooltip-panel { box-sizing: border-box; }
+@media (max-width: 768px) {
+  .tooltip-panel {
+    position: fixed;
+    left: 50% !important;
+    transform: translateX(-50%);
+    top: calc(env(safe-area-inset-top, 0px) + 12px);
+    width: calc(100vw - 24px);
+    max-width: 420px;
+    max-height: 70vh;
+    overflow: auto;
+    z-index: 2000;
+  }
+}

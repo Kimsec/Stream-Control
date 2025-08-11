@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+ENV/
+.env
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Build/logs
+*.log
+
+# Prosjektspesifikt
+rtmp_endpoints.json
+*.conf      # ikke push prod-konfiger
+*.service   # kan heller legge en mal i /systemd
+details.txt
+systemctl.instructions.md

@@ -1,0 +1,412 @@
+from flask import Flask, render_template, jsonify, session, redirect, url_for, request, send_from_directory
+from obsws_python import ReqClient
+from datetime import timedelta
+from dotenv import load_dotenv
+import os, subprocess, requests, json
+
+load_dotenv()
+
+FLASK_SECRET_KEY       = os.getenv("FLASK_SECRET_KEY")
+CONFIG_PATH            = os.getenv("CONFIG_PATH")
+NGINX_CONF_OUT         = os.getenv("NGINX_CONF_OUT")
+
+MINI_PC_USER           = os.getenv("MINI_PC_USER")
+MINI_PC_IP             = os.getenv("MINI_PC_IP")
+MAC_ADDRESS            = os.getenv("MAC_ADDRESS")
+
+OBS_HOST               = os.getenv("OBS_HOST")
+OBS_PORT               = int(os.getenv("OBS_PORT"))
+OBS_PASSWORD           = os.getenv("OBS_PASSWORD")
+
+TWITCH_CLIENT_ID       = os.getenv("TWITCH_CLIENT_ID")
+TWITCH_OAUTH_TOKEN     = os.getenv("TWITCH_OAUTH_TOKEN")
+TWITCH_BROADCASTER_ID  = os.getenv("TWITCH_BROADCASTER_ID")
+
+LOGIN_PASSWORD         = os.getenv("LOGIN_PASSWORD")
+
+app = Flask(__name__)
+app.secret_key = os.getenv("FLASK_SECRET_KEY")
+app.permanent_session_lifetime = timedelta(days=7)
+
+# Dekoratør for å beskytte sensitive ruter
+def login_required(f):
+    from functools import wraps
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('authenticated'):
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    error = None
+    if request.method == 'POST':
+        entered_password = request.form.get('password', '')
+        if LOGIN_PASSWORD is not None and entered_password == LOGIN_PASSWORD:
+            session.permanent = True
+            session['authenticated'] = True
+            return redirect(url_for('home'))
+        else:
+            error = "Incorrect password. Please try again."
+    return render_template('login.html', error=error)
+
+
+@app.route('/')
+@login_required
+def home():
+    return render_template('control.html')
+
+@app.route('/logout')
+def logout():
+    session.pop('authenticated', None)
+    return redirect(url_for('login'))
+
+@app.route('/status')
+@login_required
+def get_status():
+    response = subprocess.run(["ping", "-c", "1", MINI_PC_IP], stdout=subprocess.DEVNULL)
+    if response.returncode == 0:
+        return jsonify({"status": "on"})
+    else:
+        return jsonify({"status": "off"})
+
+@app.route('/poweron', methods=['POST'])
+@login_required
+def poweron():
+    result = os.system(f'wakeonlan {MAC_ADDRESS}')
+    if result == 0:
+        return 'Turning on Mini-PC', 200
+    else:
+        return 'Failed to send Wake-on-LAN packet', 500
+
+@app.route('/shutdown', methods=['POST'])
+@login_required
+def shutdown():
+    r = subprocess.run(['ssh', f'{MINI_PC_USER}@{MINI_PC_IP}', 'sudo', 'shutdown', '-h', 'now'])
+    return ('Turning off Mini-PC', 200) if r.returncode == 0 else ('Failed to send shutdown command', 500)
+
+@app.route('/restart', methods=['POST'])
+@login_required
+def restart():
+    r = subprocess.run(['ssh', f'{MINI_PC_USER}@{MINI_PC_IP}', 'sudo', 'reboot', 'now'])
+    return ('Rebooting Mini-PC', 200) if r.returncode == 0 else ('Failed to send restart command', 500)
+
+
+def connect_obs():
+    return ReqClient(
+        host=OBS_HOST,
+        port=OBS_PORT,
+        password=OBS_PASSWORD,
+        timeout=5
+    )
+
+
+@app.route('/obs/start_stream', methods=['POST'])
+@login_required
+def start_stream():
+    try:
+        cl = connect_obs()
+        cl.start_stream()
+        cl.set_current_program_scene("Starting soon")
+        return "Stream started and switched to 'Starting soon' scene", 200
+    except Exception as e:
+        return f"Error starting stream: {e}", 500
+
+
+@app.route('/obs/stop_stream', methods=['POST'])
+@login_required
+def stop_stream():
+    try:
+        cl = connect_obs()
+        cl.stop_stream()
+        return "Stream stopped successfully", 200
+    except Exception as e:
+        return f"Error stopping stream: {e}", 500
+
+
+@app.route('/obs/stream_status')
+@login_required
+def obs_stream_status():
+    try:
+        cl = connect_obs()
+        resp_s = cl.get_stream_status()
+        # Bruk kun 'output_active' uten å sjekke data
+        is_streaming = resp_s.output_active
+
+        resp_sc = cl.get_current_program_scene()
+        current_scene = resp_sc.current_program_scene_name
+
+        print(f"[OBS] Streaming: {is_streaming}; Scene: {current_scene}")
+        return jsonify({
+            "isStreaming": is_streaming,
+            "currentScene": current_scene
+        })
+    except Exception as e:
+        print("OBS ws error:", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/obs/switch_scene', methods=['POST'])
+@login_required
+def switch_scene():
+    try:
+        data = request.get_json()
+        scene_name = data.get('scene')
+
+        if not scene_name:
+            return "Scene name is required", 400
+
+        cl = connect_obs()
+        cl.set_current_program_scene(scene_name) 
+        return f"Switched to {scene_name} scene", 200
+    except Exception as e:
+        return f"Error switching scene: {e}", 500
+
+
+@app.route('/obs/update_title', methods=['POST'])
+@login_required
+def update_title():
+    data = request.get_json()
+    new_title = data.get('title')
+
+    if not new_title:
+        return "Title is required", 400
+
+    url = f"https://api.twitch.tv/helix/channels?broadcaster_id={TWITCH_BROADCASTER_ID}"
+    headers = {
+        "Client-ID": TWITCH_CLIENT_ID,
+        "Authorization": f"Bearer {TWITCH_OAUTH_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    payload = {"title": new_title}
+
+    try:
+        resp = requests.patch(url, headers=headers, json=payload)
+        if resp.status_code == 204:
+            return "Stream title updated successfully on Twitch", 200
+        else:
+            print(f"Error from Twitch API: {resp.status_code} - {resp.text}")
+            return f"Error updating Twitch title: {resp.text}", resp.status_code
+    except Exception as e:
+        print(f"Exception while updating Twitch title: {e}")
+        return f"An error occurred: {e}", 500
+
+
+@app.route('/twitch/search_categories', methods=['GET'])
+@login_required
+def search_categories():
+    try:
+        query = request.args.get('query')  # Hent søkestrengen fra forespørselen
+
+        if not query:
+            return "Query parameter is required", 400
+
+        url = f"https://api.twitch.tv/helix/search/categories?query={query}"
+        headers = {
+            "Client-ID": TWITCH_CLIENT_ID,
+            "Authorization": f"Bearer {TWITCH_OAUTH_TOKEN}"
+        }
+
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            return response.json(), 200
+        else:
+            return f"Error searching categories: {response.text}", response.status_code
+    except Exception as e:
+        return f"Error: {e}", 500
+
+
+@app.route('/twitch/update_category', methods=['POST'])
+@login_required
+def update_category():
+    try:
+        data = request.get_json()
+        category_id = data.get('category_id')  # ID for den nye kategorien
+        new_title = data.get('title')  # Ny tittel
+
+        if not category_id or not new_title:
+            return "Both category ID and title are required", 400
+
+        url = f"https://api.twitch.tv/helix/channels?broadcaster_id={TWITCH_BROADCASTER_ID}"
+        headers = {
+            "Client-ID": TWITCH_CLIENT_ID,
+            "Authorization": f"Bearer {TWITCH_OAUTH_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "game_id": category_id,  # Oppdaterer kategorien med ID
+            "title": new_title       # Oppdaterer tittelen
+        }
+
+        response = requests.patch(url, headers=headers, json=payload)
+        if response.status_code == 204:
+            return "Category and title updated successfully", 200
+        else:
+            return f"Error updating category and title: {response.text}", response.status_code
+    except Exception as e:
+        return f"Error: {e}", 500
+
+
+@app.route('/twitch/channel_info')
+@login_required
+def get_channel_info():
+    try:
+        url = f"https://api.twitch.tv/helix/channels?broadcaster_id={TWITCH_BROADCASTER_ID}"
+        headers = {
+            "Client-ID": TWITCH_CLIENT_ID,
+            "Authorization": f"Bearer {TWITCH_OAUTH_TOKEN}"
+        }
+        resp = requests.get(url, headers=headers)
+        resp.raise_for_status()  # Kaster feil for dårlig status (4xx eller 5xx)
+        
+        data = resp.json().get('data')
+        if data:
+            channel_data = data[0]
+            title = channel_data.get('title', '')
+            category = channel_data.get('game_name', '')  # Legg til kategorinavnet
+            category_id = channel_data.get('game_id', '')  # Legg til kategori-ID
+            broadcaster_name = channel_data.get('broadcaster_name', '')
+            return jsonify({
+                "title": title,
+                "category": {"name": category, "id": category_id},  # Returner kategori som objekt
+                "broadcaster_name": broadcaster_name
+            })
+        else:
+            return jsonify({"error": "Could not find channel data"}), 404
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching Twitch channel info: {e}")
+        error_text = f"Twitch API error: {e.response.text}" if e.response else str(e)
+        return jsonify({"error": error_text}), 500
+
+
+@app.route('/twitch/raid', methods=['POST'])
+@login_required
+def raid_channel():
+    data = request.get_json()
+    to_channel_name = data.get('channel_name')
+
+    if not to_channel_name:
+        return "Channel name is required", 400
+
+    # Step 1: Get the user ID of the channel to raid
+    try:
+        url_user = f"https://api.twitch.tv/helix/users?login={to_channel_name}"
+        headers_user = {
+            "Client-ID": TWITCH_CLIENT_ID,
+            "Authorization": f"Bearer {TWITCH_OAUTH_TOKEN}"
+        }
+        resp_user = requests.get(url_user, headers=headers_user)
+        if resp_user.status_code != 200 or not resp_user.json().get('data'):
+            return f"Could not find Twitch user '{to_channel_name}'", 404
+        
+        to_broadcaster_id = resp_user.json()['data'][0]['id']
+    except Exception as e:
+        return f"Error looking up user: {e}", 500
+
+    # Step 2: Start the raid
+    try:
+        url_raid = f"https://api.twitch.tv/helix/raids?from_broadcaster_id={TWITCH_BROADCASTER_ID}&to_broadcaster_id={to_broadcaster_id}"
+        headers_raid = {
+            "Client-ID": TWITCH_CLIENT_ID,
+            "Authorization": f"Bearer {TWITCH_OAUTH_TOKEN}"
+        }
+        resp_raid = requests.post(url_raid, headers=headers_raid)
+
+        if resp_raid.status_code == 200:
+            return f"Successfully started raid to {to_channel_name}!", 200
+        else:
+            return f"Failed to start raid: {resp_raid.text}", resp_raid.status_code
+    except Exception as e:
+        return f"Error starting raid: {e}", 500
+    
+@app.route('/rtmp_endpoints.json')
+@login_required
+def get_endpoints():
+    return send_from_directory(
+        os.path.dirname(CONFIG_PATH),
+        os.path.basename(CONFIG_PATH),
+        mimetype='application/json'
+    )
+
+@app.route('/api/update_push', methods=['POST'])
+@login_required
+def update_push():
+    try:
+        data = request.get_json()
+        if not data or 'push_endpoints' not in data:
+            return jsonify({"error": "Payload må inneholde push_endpoints"}), 400
+
+        # 1) Oppdater JSON-fila
+        with open(CONFIG_PATH, 'w') as f:
+            json.dump({"push_endpoints": data['push_endpoints']}, f, indent=2)
+
+        # 2) Rendre nginx-konfig fra Jinja2-malen
+        rendered = render_template('nginx.conf.j2', push_endpoints=data['push_endpoints'])
+
+        # 3) Skriv direkte til nginx.conf
+        with open(NGINX_CONF_OUT, 'w') as f:
+            f.write(rendered)
+
+        try:
+            subprocess.run(
+                ['sudo', '-n', '/usr/sbin/nginx', '-t'],
+                check=True, capture_output=True, text=True
+            )
+            subprocess.run(
+                ['sudo', '-n', '/usr/sbin/nginx', '-s', 'reload'],
+                check=True, capture_output=True, text=True
+            )
+        except subprocess.CalledProcessError as e:
+            return jsonify({
+                "error": "nginx-kommando feilet",
+                "details": e.stderr.strip()
+            }), 500
+
+        return jsonify({"status": "ok"}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+
+# --- Chatbot via systemd ---
+SERVICE_NAME = "chatbot"  # tilsvarer `systemctl start chatbot`
+
+def _systemctl(cmd: str):
+    r = subprocess.run(["sudo", "-n", "systemctl", cmd, SERVICE_NAME],
+                       capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError((r.stderr or r.stdout).strip())
+    return (r.stdout or "").strip()
+
+@app.route('/bot/start', methods=['POST'])
+@login_required
+def bot_start():
+    try:
+        _systemctl("restart")  # restart = "start if not running, else reload"
+        return jsonify({"ok": True})
+    except Exception as e:
+        return (f"start error: {e}", 500)
+
+@app.route('/bot/stop', methods=['POST'])
+@login_required
+def bot_stop():
+    try:
+        _systemctl("stop")
+        return jsonify({"ok": True})
+    except Exception as e:
+        return (f"stop error: {e}", 500)
+
+@app.route('/bot/status')
+@login_required
+def bot_status():
+    running = subprocess.run(["systemctl", "is-active", "--quiet", SERVICE_NAME]).returncode == 0
+    return jsonify({"running": running})
+
+
+@app.route('/manifest.json')
+def manifest():
+    return send_from_directory('.', 'manifest.json')
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
