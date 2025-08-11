@@ -1,5 +1,14 @@
-# Stream-Control
+<p align="center" width="10%">
+    <img width="20%" src="Screenshots/logo.png"></a>
+</p>
 
+# <p align="center">Stream Control</p>
+
+<br><p align="center" width="100%">
+<a href="https://www.buymeacoffee.com/kimsec">
+  <img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&amp;emoji=%E2%98%95&amp;slug=kimsec&amp;button_colour=FFDD00&amp;font_colour=000000&amp;font_family=Inter&amp;outline_colour=000000&amp;coffee_colour=ffffff" alt="Buy Me A Coffee"></a></p>
+
+# Description
 A small web control panel for streaming — built with **Flask**.  
 Start/stop OBS streaming, switch scenes, update Twitch title/category, trigger raids, and manage **restreaming** via `nginx-rtmp` with a simple UI that lets you add/enable/disable RTMP push destinations. All secrets and paths are configured via **.env**.
 
