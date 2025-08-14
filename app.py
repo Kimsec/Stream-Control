@@ -2,7 +2,12 @@ from flask import Flask, render_template, jsonify, session, redirect, url_for, r
 from obsws_python import ReqClient
 from datetime import timedelta
 from dotenv import load_dotenv
-import os, subprocess, requests, json
+import os, subprocess, requests, json, time
+from threading import Lock, Thread, Event  # added Thread & Event for token maint
+from flask_sock import Sock
+
+app = Flask(__name__)           # OPPRETT APP FØRST
+sock = Sock(app)                # så initialiser Sock
 
 load_dotenv()
 
@@ -19,13 +24,15 @@ OBS_PORT               = int(os.getenv("OBS_PORT"))
 OBS_PASSWORD           = os.getenv("OBS_PASSWORD")
 
 TWITCH_CLIENT_ID       = os.getenv("TWITCH_CLIENT_ID")
-TWITCH_OAUTH_TOKEN     = os.getenv("TWITCH_OAUTH_TOKEN")
+TWITCH_OAUTH_TOKEN     = os.getenv("TWITCH_OAUTH_TOKEN")          # initial access token (kan bli oppdatert)
 TWITCH_BROADCASTER_ID  = os.getenv("TWITCH_BROADCASTER_ID")
+TWITCH_CLIENT_SECRET   = os.getenv("TWITCH_CLIENT_SECRET")
+TWITCH_REFRESH_TOKEN   = os.getenv("TWITCH_REFRESH_TOKEN", "")
+TWITCH_TOKENS_PATH     = os.getenv("TWITCH_TOKENS_PATH", os.path.join(os.path.dirname(__file__), "twitch_tokens.json"))
 
 LOGIN_PASSWORD         = os.getenv("LOGIN_PASSWORD")
 
-app = Flask(__name__)
-app.secret_key = os.getenv("FLASK_SECRET_KEY")
+app.secret_key = FLASK_SECRET_KEY
 app.permanent_session_lifetime = timedelta(days=7)
 
 # Dekoratør for å beskytte sensitive ruter
@@ -169,14 +176,15 @@ def switch_scene():
 def update_title():
     data = request.get_json()
     new_title = data.get('title')
-
     if not new_title:
         return "Title is required", 400
-
+    token = ensure_user_token()
+    if not token:
+        return "Missing Twitch user token", 400
     url = f"https://api.twitch.tv/helix/channels?broadcaster_id={TWITCH_BROADCASTER_ID}"
     headers = {
         "Client-ID": TWITCH_CLIENT_ID,
-        "Authorization": f"Bearer {TWITCH_OAUTH_TOKEN}",
+        "Authorization": f"Bearer {token}",
         "Content-Type": "application/json"
     }
     payload = {"title": new_title}
@@ -197,15 +205,16 @@ def update_title():
 @login_required
 def search_categories():
     try:
-        query = request.args.get('query')  # Hent søkestrengen fra forespørselen
-
+        query = request.args.get('query')
         if not query:
             return "Query parameter is required", 400
-
+        token = ensure_user_token()
+        if not token:
+            return "Missing Twitch user token", 400
         url = f"https://api.twitch.tv/helix/search/categories?query={query}"
         headers = {
             "Client-ID": TWITCH_CLIENT_ID,
-            "Authorization": f"Bearer {TWITCH_OAUTH_TOKEN}"
+            "Authorization": f"Bearer {token}"
         }
 
         response = requests.get(url, headers=headers)
@@ -222,16 +231,17 @@ def search_categories():
 def update_category():
     try:
         data = request.get_json()
-        category_id = data.get('category_id')  # ID for den nye kategorien
-        new_title = data.get('title')  # Ny tittel
-
+        category_id = data.get('category_id')
+        new_title = data.get('title')
         if not category_id or not new_title:
             return "Both category ID and title are required", 400
-
+        token = ensure_user_token()
+        if not token:
+            return "Missing Twitch user token", 400
         url = f"https://api.twitch.tv/helix/channels?broadcaster_id={TWITCH_BROADCASTER_ID}"
         headers = {
             "Client-ID": TWITCH_CLIENT_ID,
-            "Authorization": f"Bearer {TWITCH_OAUTH_TOKEN}",
+            "Authorization": f"Bearer {token}",
             "Content-Type": "application/json"
         }
         payload = {
@@ -252,10 +262,13 @@ def update_category():
 @login_required
 def get_channel_info():
     try:
+        token = ensure_user_token()
+        if not token:
+            return jsonify({"error": "Missing Twitch user token"}), 400
         url = f"https://api.twitch.tv/helix/channels?broadcaster_id={TWITCH_BROADCASTER_ID}"
         headers = {
             "Client-ID": TWITCH_CLIENT_ID,
-            "Authorization": f"Bearer {TWITCH_OAUTH_TOKEN}"
+            "Authorization": f"Bearer {token}"
         }
         resp = requests.get(url, headers=headers)
         resp.raise_for_status()  # Kaster feil for dårlig status (4xx eller 5xx)
@@ -285,16 +298,16 @@ def get_channel_info():
 def raid_channel():
     data = request.get_json()
     to_channel_name = data.get('channel_name')
-
     if not to_channel_name:
         return "Channel name is required", 400
-
-    # Step 1: Get the user ID of the channel to raid
+    token = ensure_user_token()
+    if not token:
+        return "Missing Twitch user token", 400
     try:
         url_user = f"https://api.twitch.tv/helix/users?login={to_channel_name}"
         headers_user = {
             "Client-ID": TWITCH_CLIENT_ID,
-            "Authorization": f"Bearer {TWITCH_OAUTH_TOKEN}"
+            "Authorization": f"Bearer {token}"
         }
         resp_user = requests.get(url_user, headers=headers_user)
         if resp_user.status_code != 200 or not resp_user.json().get('data'):
@@ -309,7 +322,7 @@ def raid_channel():
         url_raid = f"https://api.twitch.tv/helix/raids?from_broadcaster_id={TWITCH_BROADCASTER_ID}&to_broadcaster_id={to_broadcaster_id}"
         headers_raid = {
             "Client-ID": TWITCH_CLIENT_ID,
-            "Authorization": f"Bearer {TWITCH_OAUTH_TOKEN}"
+            "Authorization": f"Bearer {token}"
         }
         resp_raid = requests.post(url_raid, headers=headers_raid)
 
@@ -371,6 +384,7 @@ def update_push():
 
 # --- Chatbot via systemd ---
 SERVICE_NAME = "chatbot"  # tilsvarer `systemctl start chatbot`
+STREAM_GUARD_SERVICE_NAME = os.getenv("STREAM_GUARD_SERVICE_NAME", "stream-guard")  # systemd navn for StreamGuard
 
 def _systemctl(cmd: str):
     r = subprocess.run(["sudo", "-n", "systemctl", cmd, SERVICE_NAME],
@@ -408,5 +422,206 @@ def bot_status():
 def manifest():
     return send_from_directory('.', 'manifest.json')
 
+# --- Alerts API ---
+_alert_lock = Lock()
+_alert_seq = 0
+_last_alert = None  # {"id": int, "type": "low|restored", "message": str, "ts": float}
+
+_ws_lock = Lock()
+_ws_clients = set()
+
+def _ws_broadcast(payload: dict) -> None:
+    dead = []
+    with _ws_lock:
+        for ws in list(_ws_clients):
+            try:
+                ws.send(json.dumps(payload))
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            _ws_clients.discard(ws)
+
+@sock.route('/ws/alerts')
+def ws_alerts(ws):
+    with _ws_lock:
+        _ws_clients.add(ws)
+    try:
+        while True:
+            msg = ws.receive()
+            if msg is None:
+                break
+    finally:
+        with _ws_lock:
+            _ws_clients.discard(ws)
+
+@app.post("/api/alert")
+def api_alert():
+    data = request.get_json(force=True, silent=True) or {}
+    typ = (data.get("type") or "").strip().lower()
+    msg = (data.get("message") or "").strip()
+    if typ not in ("low", "restored"):
+        return jsonify({"ok": False, "message": "invalid type"}), 400
+    _ws_broadcast({"type": typ, "message": msg, "ts": time.time()})
+    return jsonify({"ok": True}), 200
+
+@app.get("/overlay")
+def overlay():
+    return render_template("overlay.html")
+
+
+_TOKENS_PATH = TWITCH_TOKENS_PATH
+_TOKENS = {
+    "access": TWITCH_OAUTH_TOKEN or "",
+    "refresh": TWITCH_REFRESH_TOKEN or ""
+}
+# --- Added for proactive token maintenance ---
+_token_lock = Lock()
+_stop_token_maint = Event()
+_TOKEN_REFRESH_THRESHOLD = 24 * 3600  # refresh if <24h left
+
+def _load_tokens_file():
+    try:
+        with open(_TOKENS_PATH, "r", encoding="utf-8") as f:
+            js = json.load(f)
+        _TOKENS["access"] = js.get("access_token", _TOKENS["access"])
+        _TOKENS["refresh"] = js.get("refresh_token", _TOKENS["refresh"])
+    except Exception:
+        pass
+
+def _save_tokens_file():
+    try:
+        with open(_TOKENS_PATH, "w", encoding="utf-8") as f:
+            json.dump({
+                "access_token": _TOKENS.get("access",""),
+                "refresh_token": _TOKENS.get("refresh","")
+            }, f, indent=2)
+        try:
+            os.chmod(_TOKENS_PATH, 0o600)
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+def _validate_token(tok: str):
+    if not tok:
+        return None
+    try:
+        r = requests.get("https://id.twitch.tv/oauth2/validate",
+                         headers={"Authorization": f"OAuth {tok}"}, timeout=6)
+        if r.status_code == 200:
+            return r.json()
+    except Exception:
+        pass
+    return None
+
+def _current_token_info():
+    info = _validate_token(_TOKENS.get("access", ""))
+    if not info:
+        return {"valid": False, "expires_in": 0}
+    return {"valid": True, "expires_in": info.get("expires_in", 0)}
+
+def ensure_user_token() -> str:
+    """
+    Returner gyldig user access token. Forsøker refresh hvis ugyldig eller
+    mindre enn 24t igjen. Tråd-sikker.
+    """
+    with _token_lock:
+        tok = _TOKENS.get("access", "")
+        info = _validate_token(tok)
+        if info and info.get("expires_in", 0) > _TOKEN_REFRESH_THRESHOLD:
+            return tok
+        # refresh attempt
+        if _TOKENS.get("refresh") and TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET:
+            try:
+                r = requests.post("https://id.twitch.tv/oauth2/token", data={
+                    "client_id": TWITCH_CLIENT_ID,
+                    "client_secret": TWITCH_CLIENT_SECRET,
+                    "grant_type": "refresh_token",
+                    "refresh_token": _TOKENS["refresh"],
+                }, timeout=10)
+                js = r.json()
+                if r.status_code == 200 and js.get("access_token"):
+                    _TOKENS["access"] = js["access_token"]
+                    if js.get("refresh_token"):
+                        _TOKENS["refresh"] = js["refresh_token"]
+                    _save_tokens_file()
+                    return _TOKENS["access"]
+            except Exception:
+                pass
+        return _TOKENS.get("access", "")
+
+def _token_maintenance_loop():
+    # Runs forever to keep token fresh even without HTTP traffic
+    while not _stop_token_maint.is_set():
+        try:
+            ensure_user_token()
+        except Exception:
+            pass
+        # wake every 30 min
+        _stop_token_maint.wait(1800)
+
+_load_tokens_file()
+# start maintenance thread once
+Thread(target=_token_maintenance_loop, daemon=True, name="token-maint").start()
+
+
+@app.route("/api/sg_status")
+@login_required
+def sg_status():
+    base = {}
+    # Stream Guard internal (if running) -> optional
+    try:
+        r = requests.get("http://127.0.0.1:8765/health", timeout=1.0)
+        base.update(r.json())
+    except Exception:
+        base.setdefault("sg_error", True)
+
+    # StreamGuard systemd state
+    try:
+        sg_active_rc = subprocess.run(["systemctl", "is-active", "--quiet", STREAM_GUARD_SERVICE_NAME]).returncode
+        sg_failed_rc = subprocess.run(["systemctl", "is-failed", "--quiet", STREAM_GUARD_SERVICE_NAME]).returncode
+        if sg_active_rc == 0:
+            base['streamguard_state'] = 'ok'
+        elif sg_failed_rc == 0:
+            base['streamguard_state'] = 'error'
+        else:
+            base['streamguard_state'] = 'offline'
+    except Exception:
+        base['streamguard_state'] = 'error'
+
+    # Chatbot systemd state classification
+    chatbot_state = 'offline'
+    try:
+        # active?
+        active_rc = subprocess.run(["systemctl", "is-active", "--quiet", SERVICE_NAME]).returncode
+        failed_rc = subprocess.run(["systemctl", "is-failed", "--quiet", SERVICE_NAME]).returncode
+        if active_rc == 0:
+            chatbot_state = 'ok'
+        elif failed_rc == 0:
+            chatbot_state = 'error'
+        else:
+            chatbot_state = 'offline'
+    except Exception:
+        chatbot_state = 'error'
+    base['chatbot_state'] = chatbot_state
+
+    # SLS stats endpoint
+    try:
+        sr = requests.get("http://192.168.25.5:8181/stats", timeout=1.5)
+        base['sls_state'] = 'ok' if sr.status_code == 200 else 'error'
+    except Exception:
+        base['sls_state'] = 'error'
+
+    # Twitch token validity
+    tinfo = _current_token_info()
+    base['token_valid'] = tinfo['valid']
+    base['token_expires_in'] = tinfo['expires_in']
+    return jsonify(base)
+
+
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    try:
+        app.run(host='0.0.0.0', port=5000)
+    finally:
+        _stop_token_maint.set()

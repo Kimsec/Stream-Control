@@ -2,3 +2,6 @@ Flask
 obsws-python
 python-dotenv
 requests
+flask-sock
+simple-websocket
+aiohttp

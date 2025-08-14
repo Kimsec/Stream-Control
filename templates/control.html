@@ -13,6 +13,9 @@
     <link rel="icon" type="image/png" href="https://kimsec.net/download/caxyhh/icon_logo.png" />
     <link rel="manifest" href="https://kimsec.net/download/caxyhh/manifest.json">
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div id="audio-permission-banner" style="background-color: #81029b; color: white; padding: 15px; text-align: center; cursor: pointer; font-size: 18px;">
@@ -33,7 +36,19 @@
             <button id="turnOnBtn" onclick="turnOnMiniPC()">Turn On</button>
             <button id="turnOffBtn" onclick="turnOffMiniPC()">Shutdown</button>
             <button id="restartBtn" onclick="restartMiniPC()">Restart</button>
-        </div>
+        </div><br><br>
+                <div id="health-panel" class="health-panel">
+                    <h3 class="health-title">Health checks:</h3>
+                    <ul class="health-list">
+                        <li><span class="health-name">Chatbot</span><span class="hc-dot" id="hc-chatbot" title="chatbot.service"></span><span class="hc-label" id="hc-chatbot-label">—</span></li>
+                        <li><span class="health-name">StreamGuard</span><span class="hc-dot" id="hc-streamguard" title="stream-guard.service"></span><span class="hc-label" id="hc-streamguard-label">—</span></li>
+                        <li><span class="health-name">SLS</span><span class="hc-dot" id="hc-sls" title="SLS stats endpoint"></span><span class="hc-label" id="hc-sls-label">—</span></li>
+                        <li><span class="health-name">OBS</span><span class="hc-dot" id="hc-obs"></span><span class="hc-label" id="hc-obs-label">—</span></li>
+                        <li><span class="health-name">Twitch Events WS</span><span class="hc-dot" id="hc-raidws"></span><span class="hc-label" id="hc-raidws-label">—</span></li>
+                        <li><span class="health-name">Raid AutoStop</span><span class="hc-dot" id="hc-raidsub"></span><span class="hc-label" id="hc-raidsub-label">—</span></li>
+                        <li><span class="health-name">Twitch Token</span><span class="hc-dot" id="hc-token"></span><span class="hc-label" id="hc-token-label">—</span></li>
+                    </ul>
+                </div>
     </div>
 
     <!-- OBS-fane -->
@@ -42,7 +57,7 @@
             <p id="streamStatus" class="status">Status: Unknown</p>
             <p id="obsScene" class="status">Scene: Unknown</p>
             <button id="startStreamBtn" onclick="sendRequest('/obs/start_stream')">Start Stream 🟢</button>
-            <button id="stopStreamBtn" onclick="stopStream()" style="display: none;">Stop Stream 🔴</button>
+            <button id="stopStreamBtn" onclick="openStopStreamModal()" style="display:none;">Stop Stream 🔴</button>
             <button onclick="switchToLive()">Switch to 'LIVE' Scene</button>
             <button onclick="switchToBRB()">Switch to 'BRB' Scene</button>
             <button id="showStreamTitleInput" onclick="showStreamTitleForm()">Update Stream Title</button>
@@ -66,27 +81,28 @@
             </div>
                     <!-- Skjult seksjon for restream-opsjoner -->
             <div id="restreamOptions" style="display:none; margin-top:20px; text-align:left;">
-  <h3 style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-    Platforms:
-    <span class="tooltip">
-      <button id="platformsHelp" class="tooltip-button" aria-haspopup="true" aria-expanded="false">(?)</button>
-      <div id="platformsTooltip" class="tooltip-panel" role="dialog" aria-label="RTMP formats help">
-        <strong>RTMP formats</strong>
-        <ul style="margin:8px 0 0 16px; padding:0;">
-          <li><b>Twitch</b>: <code>rtmp://TWITCH-INGEST-SERVER/app/STREAM_KEY</code></li>
-          <li><b>Kick</b>: <code>rtmp://127.0.0.1:19360/PATH/STREAM_KEY</code></li>
-          <li><b>Youtube</b>: <code>rtmp://STREAM-URL/STREAM-KEY</code></li>
-        </ul>
-        <p style="margin:8px 0 0; color:#bdbdbd;">Replace PATH/STREAM_KEY with your values.</p>
-      </div>
+    <h3 class="restream-heading">Platforms:</h3>
+    <span id="platformsHelpWrapper" class="tooltip">
+        <button id="platformsHelp" class="tooltip-button" aria-haspopup="true" aria-expanded="false" title="RTMP format help" type="button">
+            <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M10 18a8 8 0 100-16 8 8 0 000 16zm-.25-4a.75.75 0 111.5 0 .75.75 0 01-1.5 0zM10 5.75a2.25 2.25 0 00-1.928 3.39.75.75 0 01-1.299.77 3.75 3.75 0 116.456-3.75c0 1.273-.705 2.443-1.832 3.102a2.25 2.25 0 00-1.121 1.49.75.75 0 01-1.456-.364 3.75 3.75 0 011.871-2.482c.614-.354.988-1.01.988-1.746A2.25 2.25 0 0010 5.75z"/></svg>
+            <span class="sr-only">Help</span>
+        </button>
+        <div id="platformsTooltip" class="tooltip-panel" role="dialog" aria-label="RTMP formats help">
+            <strong>RTMP formats</strong>
+            <ul style="margin:8px 0 0 16px; padding:0;">
+                <li><b>Twitch</b>: <code>rtmp://TWITCH-INGEST-SERVER/app/STREAM_KEY</code></li>
+                <li><b>Kick</b>: <code>rtmp://127.0.0.1:19360/PATH/STREAM_KEY</code></li>
+                <li><b>Youtube</b>: <code>rtmp://STREAM-URL/STREAM-KEY</code></li>
+            </ul>
+            <p style="margin:8px 0 0; color:#bdbdbd;">Replace PATH/STREAM_KEY with your values.</p>
+        </div>
     </span>
-  </h3>
   <div id="endpointsList"><!-- JS fills here --></div>
-  <button id="addEndpoint" style="font-size:24px; padding:5px 10px; margin-top:10px;">Add New Line</button>
-  <div style="margin-top:20px; display:flex; justify-content:center; gap:10px;">
-      <button id="saveRestream" style="font-size:24px; padding:5px 10px;">Save</button>
-      <button id="cancelRestream" style="font-size:24px; padding:5px 10px;">Cancel</button>
-  </div>
+    <button id="addEndpoint" class="restream-add-btn">Add New Line</button>
+    <div class="restream-actions">
+            <button id="saveRestream" class="restream-action primary">Save</button>
+            <button id="cancelRestream" class="restream-action secondary">Cancel</button>
+    </div>
 </div>
         </div>
     </div>
@@ -105,11 +121,47 @@
         </div>
     </div>
     <!-- Skjult alertbox for lyd/varsler -->
-    <iframe id="alertbox-iframe" src="https://streamelements.com/overlay/60455a2e72dba40e07a947fe/cMQQvgWouVphlojJFWRDPUMTeCiorUTgYJzZqgCu29V3jY0p" allow="autoplay" style="width:1px;height:1px;opacity:0;position:absolute;left:-9999px;" tabindex="-1"></iframe>
+    <iframe id="alertbox-iframe" 
+        src="https://streamelements.com/overlay/60455a2e72dba40e07a947fe/cMQQvgWouVphlojJFWRDPUMTeCiorUTgYJzZqgCu29V3jY0p"
+        allow="autoplay"
+        style="width:1px;height:1px;opacity:0;position:absolute;left:-9999px;"
+        tabindex="-1"></iframe>
+
+    <iframe id="onoff-alert-audio"
+        src="/overlay"
+        allow="autoplay"
+        style="width:1px;height:1px;opacity:0;position:absolute;left:-9999px;"
+        tabindex="-1"></iframe>
+
+    <!-- Stop Stream Modal -->
+    <div id="stop-stream-modal" class="sg-modal hidden">
+      <div class="sg-modal__dialog">
+        <h2 style="margin-top:0;">Stop Stream?</h2>
+        <p style="margin:6px 0 18px;font-size:18px;">Are you sure you want to stop the stream in OBS?</p>
+        <div class="sg-modal__actions">
+          <button id="confirm-stop-stream" class="danger">Yes, stop</button>
+          <button id="cancel-stop-stream" class="secondary">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+        <!-- Delete Endpoint Modal -->
+        <div id="delete-endpoint-modal" class="sg-modal hidden" aria-hidden="true" role="dialog" aria-labelledby="del-endpoint-title">
+            <div class="sg-modal__dialog" style="border-color:#81029b;">
+                <h2 id="del-endpoint-title" style="margin-top:0;">Delete Endpoint?</h2>
+                <p style="margin:6px 0 18px;font-size:17px;">This restream target will be removed. Continue?</p>
+                <div class="sg-modal__actions">
+                    <button id="confirm-delete-endpoint" class="danger">Delete</button>
+                    <button id="cancel-delete-endpoint" class="secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
 
     <footer id="main-footer">
         Kimsec © <span id="year"></span> <span style="color: #d14;">♥</span>
     </footer>
+    <!-- Toast container -->
+    <div id="toast-host" class="toast-host" aria-live="polite" aria-atomic="true"></div>
     <script src="{{ url_for('static', filename='main.js') }}" defer></script>
 </body>
 </html>

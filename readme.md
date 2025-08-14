@@ -1,231 +1,301 @@
-<p align="center" width="10%">
-    <img width="20%" src="Screenshots/logo.png"></a>
-</p>
-
-# <p align="center">Stream Control</p>
-
-<br><p align="center" width="100%">
-<a href="https://www.buymeacoffee.com/kimsec">
-  <img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&amp;emoji=%E2%98%95&amp;slug=kimsec&amp;button_colour=FFDD00&amp;font_colour=000000&amp;font_family=Inter&amp;outline_colour=000000&amp;coffee_colour=ffffff" alt="Buy Me A Coffee"></a></p>
 <p align="center">
-  <a href="https://github.com/kimsec/Stream-Control/releases/latest">
-    <img src="https://img.shields.io/badge/Download-Stream_Control-blue" alt="Download Badge" style="margin-right: 10px;"></a>
-    <a href="https://github.com/Kimsec/Stream-Control/releases">
-    <img src="https://img.shields.io/github/v/release/kimsec/Stream-Control" alt="Release Badge" style="margin-right: 0px;"></a>
+  <img width="220" src="Screenshots/logo.png" alt="Stream Control Logo">
 </p>
 
+<h1 align="center">Stream Control & Stream Guard</h1>
 
-# Description
-A small web control panel for streaming — built with **Flask**.  
-Start/stop OBS streaming, switch scenes, update Twitch title/category, trigger raids, and manage **restreaming** via `nginx-rtmp` with a simple UI that lets you add/enable/disable RTMP push destinations. All secrets and paths are configured via **.env**.
+<p align="center">
+  <a href="https://github.com/Kimsec/Stream-Control/releases/latest">
+    <img src="https://img.shields.io/github/v/release/kimsec/Stream-Control" alt="Latest Release">
+  </a>
+  <a href="https://github.com/Kimsec/Stream-Control">
+    <img src="https://img.shields.io/badge/Platform-Self%20Hosted-success" alt="Self Hosted">
+  </a>
+  <a href="https://www.buymeacoffee.com/kimsec">
+    <img src="https://img.shields.io/badge/Support-Buy%20Me%20a%20Coffee-FFDD00?logo=buymeacoffee&logoColor=000" alt="Support">
+  </a>
+</p>
+
+<p align="center">
+A lightweight self‑hosted control panel and autonomous guardian for live streaming.
+Manage OBS, Twitch metadata, outgoing raids, restream destinations, and automatic
+bitrate-based scene switching. Designed for unattended, long-running operation.
+</p>
 
 ---
 
-## Table of contents
-
+## Table of Contents
+- [Overview](#overview)
 - [Features](#features)
-- [Requirements](#requirements)
+- [Architecture](#architecture)
+- [Quick Start](#quick-start)
+- [Prerequisites](#prerequisites)
 - [Installation](#installation)
-- [Environment variables (.env)](#environment-variables-env)
-- [Run](#run)
-- [Nginx RTMP](#nginx-rtmp)
-- [Restream endpoints (JSON)](#restream-endpoints-json)
-- [Kick / RTMPS via stunnel (optional)](#kick--rtmps-via-stunnel-optional)
-- [sudoers / permissions](#sudoers--permissions)
-- [Systemd (optional)](#systemd-optional)
-- [Security notes](#security-notes)
+- [Configuration](#configuration)
+- [Running the Services](#running-the-services)
+- [Using the Web UI](#using-the-web-ui)
+- [Restream Management](#restream-management)
+- [Twitch Integration & Tokens](#twitch-integration--tokens)
+- [Bitrate & Raid Automation](#bitrate--raid-automation)
+- [Alert Overlay](#alert-overlay)
+- [Health Indicators](#health-indicators)
+- [Security Recommendations](#security-recommendations)
+- [Troubleshooting](#troubleshooting)
+- [Extending](#extending)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
+
+## Overview
+
+Stream-Control consists of:
+1. A Flask-based control panel (web dashboard).
+2. A companion background process (Stream Guard) that:
+   - Monitors bitrate via a stats endpoint (e.g. SRS / SLS / nginx module JSON)
+   - Switches scenes automatically (LIVE <-> lowbitrate)
+   - Listens for Twitch outgoing raids (EventSub WebSocket) and can stop the stream
+   - Exposes a local health JSON polled by the panel
+3. An overlay alert channel (WebSocket) for visual/audio notifications (e.g. low bitrate).
+
+No database—simple JSON + environment variables.
 
 ---
 
 ## Features
 
-- **OBS control** via obs-websocket v5 (start/stop stream, switch scenes).
-- **Twitch integration**: update stream title & category (with live category search), start a raid.
-- **Restream management** with `nginx-rtmp`:
-  - Toggle each destination on/off.
-  - Add/edit/delete endpoints in the web UI.
-  - Confirmation dialog before deleting.
-  - Save -> renders RTMP config from a Jinja2 template and reloads nginx.
-- **Mini-PC actions**: ping status, Wake-on-LAN, restart, shutdown.
-- **Optional**: start/stop a `systemd` service (e.g., a chatbot) from the UI.
+- OBS start/stop + scene switching.
+- Twitch title & category update with live search.
+- Outgoing raid trigger.
+- Automatic bitrate-based fallback & recovery scene logic.
+- Automatic Twitch user token maintenance (refresh & persistence).
+- EventSub (channel.raid) with reconnect + revocation recovery + resubscribe.
+- Restream editor (writes JSON, regenerates nginx push config, auto reload).
+- Wake-on-LAN / restart / shutdown for remote Mini-PC.
+- Optional systemd chatbot control.
+- Overlay alert push (low / restored).
+- Health/status indicators (OBS, raid WS, subscription, token, etc.).
 
-## Requirements
+---
 
-- **Python 3.10+**
-- **OBS** with **obs-websocket v5** enabled
-- **nginx** with **ngx_rtmp_module** (loaded with `load_module`)
-- (Optional) **stunnel4** for RTMPS bridging (e.g., Kick)
-- Linux (tested on Debian/Ubuntu family)
+## Architecture
+
+Component | Role
+----------|-----
+`app.py` | UI endpoints, token refresh, restream config generation, alerts broadcast
+`stream_guard.py` | Bitrate/scene logic, raid EventSub, health server
+`static/main.js` | UI interactions, polling, modals, toasts
+`templates/` | HTML + nginx Jinja2 template
+`twitch_tokens.json` | Access + refresh token store (rotated automatically)
+
+Processes are decoupled for resilience.
+
+---
+
+## Quick Start
+
+```bash
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+# Edit .env
+python app.py
+python stream_guard.py
+```
+
+Open http://localhost:5000 (login with LOGIN_PASSWORD).
+
+---
+
+## Prerequisites
+
+- Python 3.10+
+- OBS with obs-websocket v5
+- nginx with RTMP module (if restreaming)
+- Stats endpoint (for bitrate switching)
+- Twitch API credentials (Client ID + Secret + user tokens)
+- Optional: stunnel (RTMPS), systemd
+
+---
 
 ## Installation
 
 ```bash
-git clone https://github.com/<your-username>/Stream-Control.git
+git clone https://github.com/Kimsec/Stream-Control.git
 cd Stream-Control
-
 python -m venv venv
-source venv/bin/activate        # On Windows: venv\Scripts\activate
+source venv/bin/activate
 pip install -r requirements.txt
-
-cp .env.example .env            # Fill in your values
+cp .env.example .env
 ```
 
-Run in development:
+---
 
+## Configuration
+
+Key groups in `.env`:
+
+Group | Examples
+------|---------
+Flask/Auth | FLASK_SECRET_KEY, LOGIN_PASSWORD
+OBS | OBS_HOST, OBS_PORT, OBS_PASSWORD
+Bitrate | STATS_URL, BITRATE_LOW_KBPS, BITRATE_HIGH_KBPS, POLL_INTERVAL_SEC, LOW_CONSEC_SAMPLES
+Scenes | LIVE_SCENE_NAME, LOW_SCENE_NAME
+Restream | CONFIG_PATH, NGINX_CONF_OUT
+Mini-PC | MINI_PC_USER, MINI_PC_IP, MAC_ADDRESS
+Twitch | TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, TWITCH_BROADCASTER_ID, TWITCH_OAUTH_TOKEN, TWITCH_REFRESH_TOKEN, TWITCH_TOKENS_PATH
+Raid | RAID_AUTO_STOP_ENABLED, RAID_AUTO_STOP_DELAY
+Behavior | WAIT_FOR_STREAM_START, EXIT_WHEN_STREAM_ENDS, IDLE_WHEN_STREAM_ENDS
+Overlay | ALERTS_BASE_URL
+
+Tokens are auto-refreshed and persisted.
+
+---
+
+## Running the Services
+
+Development:
 ```bash
 python app.py
-# Open http://localhost:5000
+python stream_guard.py
 ```
 
-## Environment variables (.env)
+Production:
+- `gunicorn` for app.py
+- systemd units for both processes
+- Auto-restart on failure
 
-Everything sensitive and all paths live in **.env** (do **not** commit this file).  
-See **.env.example** for the full list. Example:
+---
 
-```
-FLASK_SECRET_KEY=change-me
+## Using the Web UI
 
-CONFIG_PATH=/home/user/stream-control/rtmp_endpoints.json
-NGINX_CONF_OUT=/etc/nginx/conf.d/rtmp.conf
+Section | Purpose
+--------|--------
+Status | OBS state, scene, health dots
+Twitch | Title/category edit, raid
+Restream | Manage push endpoints
+Mini-PC | Wake / reboot / shutdown
+Bot | Control a systemd service (optional)
+Chat | Embedded Twitch chat
+Overlay | (Browser Source usage)
 
-OBS_HOST=127.0.0.1
-OBS_PORT=4455
-OBS_PASSWORD=change-me
+Toasts provide immediate feedback.
 
-MINI_PC_USER=user
-MINI_PC_IP=192.168.0.10
-MAC_ADDRESS=00:11:22:33:44:55
+---
 
-TWITCH_CLIENT_ID=xxx
-TWITCH_OAUTH_TOKEN=xxx
-TWITCH_BROADCASTER_ID=1234567
+## Restream Management
 
-LOGIN_PASSWORD=super-secret
-```
+Workflow:
+1. Open Restream panel.
+2. Edit/add endpoints (checkbox = enabled).
+3. Save → JSON updated → nginx config rendered → nginx reloaded automatically.
+4. Only enabled endpoints produce `push` lines.
 
-> **Note:** `NGINX_CONF_OUT` is the file Flask will overwrite when you save restream settings (e.g., point it to `/etc/nginx/conf.d/rtmp.conf`).
+---
 
-## Run
+## Twitch Integration & Tokens
 
-- Dev: `python app.py`
-- Production: use **systemd** (recommended). See below.
+- Automatic refresh when invalid or near expiry.
+- Shared file `twitch_tokens.json` used by Stream Guard.
+- Health shows validity + remaining lifetime.
+- Revoked tokens trigger subscription re-attempt after refresh.
 
-## Nginx RTMP
+---
 
-The app renders `templates/nginx.conf.j2` and writes the result to `NGINX_CONF_OUT`.  
-Your nginx must load the RTMP module and include the generated file (or write directly to it).
+## Bitrate & Raid Automation
 
-Minimal example the template produces:
+Feature | Behavior
+--------|---------
+Low fallback | Switch after N consecutive low samples
+Recovery | Switch back once high threshold met
+Raid auto-stop | Optional post-raid stream stop
+Idle handling | Idle, continue, or exit when stream ends (configurable)
 
-```nginx
-load_module modules/ngx_rtmp_module.so;
+Scene transitions also dispatch overlay alerts.
 
-rtmp {
-  server {
-    listen 1935;
-    chunk_size 4096;
+---
 
-    application live {
-      live on;
-      record off;
+## Alert Overlay
 
-      # Generated from UI (enabled endpoints only):
-      # push rtmp://...;
-      # push rtmp://...;
-    }
-  }
-}
-```
+- Send: `POST /api/alert` `{ "type": "low"|"restored", "message": "..." }`
+- Display: `/overlay` (add to OBS as Browser Source)
+- Transport: WebSocket (stateless; waits for next event)
 
-On save, the app runs (via sudo):
-```
-nginx -t && nginx -s reload
-```
+---
 
-## Restream endpoints (JSON)
+## Health Indicators
 
-`CONFIG_PATH` points to a file with this structure:
+Polled via `/api/sg_status`:
 
-```json
-{
-  "push_endpoints": [
-    { "name": "Twitch",  "url": "rtmp://a.rtmp.twitch.tv/app/<key>",    "enabled": true  },
-    { "name": "YouTube", "url": "rtmp://a.rtmp.youtube.com/live2/<key>","enabled": false }
-  ]
-}
-```
+Field | Meaning
+------|--------
+obs_connected | OBS reachable
+raid_ws | EventSub WebSocket alive
+raid_subscribed | channel.raid active
+token_valid | Twitch token OK
+token_expires_in | Seconds remaining
 
-The UI lets you **check/uncheck** to enable/disable, edit name & URL, and add/delete rows.
+Color coding in UI: ok / offline / error.
 
-## Kick / RTMPS via stunnel (optional)
+---
 
-`nginx-rtmp` can’t push RTMPS directly. Use a local TLS tunnel and push RTMP to it.
+## Security Recommendations
 
-Example `/etc/stunnel/stunnel.conf`:
+- Reverse proxy + HTTPS
+- Limit network exposure (VPN / LAN)
+- Least-privilege sudo (only what’s required)
+- Strong secrets (FLASK_SECRET_KEY, LOGIN_PASSWORD)
+- Restrict token file permissions (600)
+- Never commit `.env` or live stream keys
 
-```
-client = yes
-foreground = no
-output = /var/log/stunnel4/kick.log
-pid = /run/stunnel4/stunnel.pid
+---
 
-[rtmps-kick]
-accept  = 127.0.0.1:19360
-connect = fa723fc1b171.global-contribute.live-video.net:443
-```
+## Troubleshooting
 
-Start stunnel (`stunnel4` service or a custom unit).  
-Then, in the UI add this endpoint:
+Issue | Hint
+------|-----
+OBS “Error” | Check port/password & plugin
+Token stays invalid | Refresh token expired → reissue
+No raid stop | Verify raid_ws & raid_subscribed
+Bitrate static | STATS_URL response format
+nginx reload fails | Endpoint syntax / template values
+Chat missing | Ensure broadcaster_name + correct parent domain
 
-```
-rtmp://127.0.0.1:19360/app/STREAM_KEY
-```
+Check logs for both processes first.
 
-## sudoers / permissions
+---
 
-The app uses `sudo -n` for nginx test/reload and (optionally) to control a systemd service.  
-Grant your user exact commands with `visudo` (adjust user/paths/service names):
+## Extending
 
-```
-# nginx
-youruser ALL=(root) NOPASSWD: /usr/sbin/nginx -t, /usr/sbin/nginx -s reload
+Ideas:
+- More EventSub topics
+- Additional overlay alert kinds
+- Metrics exporter
+- Role-based access
+- Webhook integration → alerts
 
-# optional: a service named "chatbot"
-youruser ALL=(root) NOPASSWD: /bin/systemctl start chatbot, /bin/systemctl stop chatbot, /bin/systemctl restart chatbot
-```
+---
 
-> **Heads-up:** `-n` makes sudo non-interactive; if the rule doesn’t match exactly, commands will fail instead of prompting for a password.
+## Contributing
 
-## Systemd (optional)
+1. Fork
+2. Branch `feat/<name>`
+3. Commit with clear messages
+4. Open PR (Problem / Solution / Test)
 
-Example service for the app (`/etc/systemd/system/stream-control.service`):
+---
 
-```ini
-[Unit]
-Description=Stream Control Web Server
-After=network.target
+## License
 
-[Service]
-User=youruser
-WorkingDirectory=/home/youruser/stream-control
-Environment="PYTHONUNBUFFERED=1"
-ExecStart=/home/youruser/stream-control/venv/bin/python /home/youruser/stream-control/app.py
-Restart=always
+Add your preferred license (e.g. MIT).
 
-[Install]
-WantedBy=multi-user.target
-```
+---
 
-Enable + start:
+## Disclaimer
 
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now stream-control
-```
+Provided “as is.” Review before exposing publicly.
 
-## Security notes
+---
 
-- Keep the app behind a VPN, reverse proxy with auth, or on a trusted network.  
-- Never commit `.env` or any real keys/stream URLs.  
-- Limit sudoers entries to the exact commands needed.  
-- Consider running the app as a non-root user under systemd with a minimal environment.
+Happy streaming.

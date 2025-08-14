@@ -1,5 +1,22 @@
 document.getElementById("year").textContent = new Date().getFullYear();
 let lastStreaming = null;
+// --- Toast system ---
+function showToast(msg, type='info', opts={}){
+  const host = document.getElementById('toast-host');
+  if(!host) return window.alert(msg); // fallback
+  const el = document.createElement('div');
+  el.className = 'toast '+type;
+  el.setAttribute('role','status');
+  el.innerHTML = `<span class="toast-msg">${msg}</span>`;
+  host.appendChild(el);
+  const ttl = opts.ttl || 3800;
+  let closed = false;
+  function close(){
+    if(closed) return; closed=true; el.classList.add('fade-out');
+    setTimeout(()=>{ el.remove(); }, 340);
+  }
+  setTimeout(close, ttl);
+}
 // Tabs
 const tabs = document.querySelectorAll('.tab');
 const tabContents = document.querySelectorAll('.tab-content');
@@ -26,8 +43,8 @@ tabs.forEach(tab => {
 function sendRequest(url) {
     fetch(url, { method: 'POST' })
         .then(res => res.text())
-        .then(alert)
-        .catch(err => alert('Error: ' + err));
+  .then(t => showToast(t,'success'))
+  .catch(err => showToast('Error: '+err,'error'));
 }
 function turnOnMiniPC() { sendRequest('/poweron'); }
 function turnOffMiniPC() { sendRequest('/shutdown'); }
@@ -61,29 +78,29 @@ function switchToBRB() {
     fetch('/obs/switch_scene', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scene: 'BRB' })  // Send scenenavnet "BRB"
+        body: JSON.stringify({ scene: 'BRB' })
     })
     .then(res => res.text())
-    .then(alert)
-    .catch(err => alert('Error: ' + err));
+  .then(t=>showToast(t,'success'))
+  .catch(err => showToast('Error: '+err,'error'));
 }
 
 function switchToLive() {
     fetch('/obs/switch_scene', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scene: 'LIVE' })  // Send scenenavnet "LIVE"
+        body: JSON.stringify({ scene: 'LIVE' }) 
     })
     .then(res => res.text())
-    .then(alert)
-    .catch(err => alert('Error: ' + err));
+  .then(t=>showToast(t,'success'))
+  .catch(err => showToast('Error: '+err,'error'));
 }
 function applyStreamTitle() {
     const title = document.getElementById("streamTitleInput").value;
     const categoryId = document.getElementById("categorySearchInput").dataset.categoryId;
 
     if (!title || !categoryId) {
-        alert("Both title and category must be set.");
+  showToast("Both title and category must be set.", 'error');
         return;
     }
 
@@ -96,13 +113,13 @@ function applyStreamTitle() {
         if (!res.ok) {
             return res.text().then(text => { throw new Error('Error from server: ' + text) });
         }
-        return res.text();
+      return res.text();
     })
     .then(msg => {
-        alert(msg);
+    showToast(msg,'success');
         cancelStreamTitle();
     })
-    .catch(err => alert(err.message));
+  .catch(err => showToast(err.message,'error'));
 }
 
 function cancelStreamTitle() {
@@ -130,7 +147,7 @@ function showStreamTitleForm() {
         })
         .catch(err => {
             console.error("Error fetching stream info:", err);
-            alert("Error fetching current stream info.");
+            showToast("Error fetching current stream info.", 'error');
         });
 }
 
@@ -149,10 +166,10 @@ function applyRaid() {
         return res.text();
     })
     .then(msg => {
-        alert(msg);
+    showToast(msg,'success');
         cancelRaid();
     })
-    .catch(err => alert(err.message));
+  .catch(err => showToast(err.message,'error'));
 }
 
 function cancelRaid() {
@@ -197,7 +214,7 @@ function checkStreamStatus() {
   fetch('/obs/stream_status')
     .then(res => res.json())
     .then(data => {
-      console.log("OBS status:", data);
+    // no-op
 
       // --- EDGE-TRIGGER: kun ved faktisk endring ---
       const isStreamingNow = !!data.isStreaming;
@@ -228,7 +245,8 @@ function checkStreamStatus() {
       status.textContent = isStreamingNow ? "Status: Streaming 🟢" : "Status: Offline 🔴";
       status.className = "status " + (isStreamingNow ? "on" : "off");
 
-      scene.textContent = "Scene: " + (data.currentScene || "—");
+            const currentScene = (data.currentScene || "—");
+            scene.textContent = "Scene: " + currentScene;
 
       if (isStreamingNow) {
         startBtn.style.display = "none";
@@ -257,7 +275,7 @@ function checkStreamStatus() {
     });
 }
 
-setInterval(checkStreamStatus, 5000);
+setInterval(checkStreamStatus, 2000);
 checkMiniPCStatus();
 loadTwitchChat(); 
 
@@ -265,21 +283,17 @@ const audioBanner = document.getElementById('audio-permission-banner');
 const alertIframe = document.getElementById('alertbox-iframe');
 
 function requestAudioPermission() {
-    try {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioContext.state === 'suspended') {
-            audioContext.resume();
-        }
-        alertIframe.contentWindow.postMessage('play', '*');
-        audioBanner.style.display = 'none'; // Skjul banneret etter aktivering
-    } catch (e) {
-        console.error('Error activating audio:', e);
-        audioBanner.style.display = 'none'; // Skjul banneret selv om det feiler
-    }
+  try {
+    alertIframe?.contentWindow?.postMessage({ type: 'unlock-audio' }, '*');
+  } catch (e) {
+    console.error('Error activating audio:', e);
+  } finally {
+    if (audioBanner) audioBanner.style.display = 'none';
+  }
 }
 
 if (audioBanner) {
-    audioBanner.addEventListener('click', requestAudioPermission, { once: true });
+  audioBanner.addEventListener('click', requestAudioPermission, { once: true });
 }
 
 function searchCategory() {
@@ -392,35 +406,38 @@ restreamBtn.addEventListener('click', () => {
                 div.appendChild(urlInput);
 
                 const editButton = document.createElement('button');
-                editButton.textContent = '✏️';
+                editButton.className = 'icon-btn edit-endpoint';
+                editButton.innerHTML = '<svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M13.586 3.586a2 2 0 0 1 2.828 2.828l-8.486 8.486a1 1 0 0 1-.293.195l-3 1a1 1 0 0 1-1.266-1.265l1-3a1 1 0 0 1 .195-.293l8.486-8.486Zm1.414 1.414L6.879 13.121l-.586 1.757 1.757-.586 8.121-8.121-1.171-1.171Z"/></svg>';
                 editButton.title = 'Edit';
-                editButton.addEventListener('click', () => {
-                    nameInput.disabled = !nameInput.disabled;
-                    urlInput.disabled = !urlInput.disabled;
-                    if (!nameInput.disabled) {
-                        nameInput.style.backgroundColor = '#444';
-                        nameInput.style.color = 'white';
-                        nameInput.style.border = '2px solid #81029b';
-                        urlInput.style.backgroundColor = '#444';
-                        urlInput.style.color = 'white';
-                        urlInput.style.border = '2px solid #81029b';
-                    } else {
-                        nameInput.style.backgroundColor = '#666';
-                        nameInput.style.color = 'black';
-                        nameInput.style.border = '1px solid #777';
-                        urlInput.style.backgroundColor = '#666';
-                        urlInput.style.color = 'black';
-                        urlInput.style.border = '1px solid #777';
-                    }
-                });
+        editButton.addEventListener('click', () => {
+          const enabling = nameInput.disabled; // was disabled -> enabling edit
+          nameInput.disabled = !nameInput.disabled;
+          urlInput.disabled = !urlInput.disabled;
+          if (enabling) {
+            div.classList.add('editing');
+            nameInput.style.backgroundColor = '#444';
+            nameInput.style.color = 'white';
+            nameInput.style.border = '2px solid #81029b';
+            urlInput.style.backgroundColor = '#444';
+            urlInput.style.color = 'white';
+            urlInput.style.border = '2px solid #81029b';
+          } else {
+            div.classList.remove('editing');
+            nameInput.style.backgroundColor = '#666';
+            nameInput.style.color = 'black';
+            nameInput.style.border = '1px solid #777';
+            urlInput.style.backgroundColor = '#666';
+            urlInput.style.color = 'black';
+            urlInput.style.border = '1px solid #777';
+          }
+        });
                 div.appendChild(editButton);
 
                 const deleteButton = document.createElement('button');
-                deleteButton.textContent = '🗑️';
+                deleteButton.className = 'icon-btn delete-endpoint';
+                deleteButton.innerHTML = '<svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M7 2a2 2 0 0 0-2 2v1H3.5a.5.5 0 0 0 0 1h.54l.82 9.016A2 2 0 0 0 6.856 17h6.288a2 2 0 0 0 1.996-1.984L15.96 6H16.5a.5.5 0 0 0 0-1H15V4a2 2 0 0 0-2-2H7Zm6 3H7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1ZM8.5 8.5a.5.5 0 0 1 .5.5v5a.5.5 0 1 1-1 0V9a.5.5 0 0 1 .5-.5Zm3 .5v5a.5.5 0 1 0 1 0V9a.5.5 0 0 0-1 0Z"/></svg>';
                 deleteButton.title = 'Delete';
-                deleteButton.addEventListener('click', () => {
-                    if (confirm('Confirm to delete?')) endpointsList.removeChild(div);
-                });
+                deleteButton.addEventListener('click', () => openDeleteEndpointModal(div));
                 div.appendChild(deleteButton);
 
                 endpointsList.appendChild(div);
@@ -458,34 +475,39 @@ addEndpointBtn.addEventListener('click', () => {
     urlInput.style.padding = '5px';
     div.appendChild(urlInput);
 
-    const editButton = document.createElement('button');
-    editButton.textContent = '✏️';
-    editButton.title = 'Edit';
-    editButton.addEventListener('click', () => {
-        nameInput.disabled = !nameInput.disabled;
-        urlInput.disabled = !urlInput.disabled;
-        if (!nameInput.disabled) {
-            nameInput.style.backgroundColor = '#444';
-            nameInput.style.color = 'white';
-            nameInput.style.border = '2px solid #81029b';
-            urlInput.style.backgroundColor = '#444';
-            urlInput.style.color = 'white';
-            urlInput.style.border = '2px solid #81029b';
-        } else {
-            nameInput.style.backgroundColor = '#666';
-            nameInput.style.color = 'black';
-            nameInput.style.border = '1px solid #777';
-            urlInput.style.backgroundColor = '#666';
-            urlInput.style.color = 'black';
-            urlInput.style.border = '1px solid #777';
-        }
-    });
+  const editButton = document.createElement('button');
+  editButton.className = 'icon-btn edit-endpoint';
+  editButton.innerHTML = '<svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M13.586 3.586a2 2 0 0 1 2.828 2.828l-8.486 8.486a1 1 0 0 1-.293.195l-3 1a1 1 0 0 1-1.266-1.265l1-3a1 1 0 0 1 .195-.293l8.486-8.486Zm1.414 1.414L6.879 13.121l-.586 1.757 1.757-.586 8.121-8.121-1.171-1.171Z"/></svg>';
+  editButton.title = 'Edit';
+  editButton.addEventListener('click', () => {
+    const enabling = nameInput.disabled;
+    nameInput.disabled = !nameInput.disabled;
+    urlInput.disabled = !urlInput.disabled;
+    if (enabling) {
+      div.classList.add('editing');
+      nameInput.style.backgroundColor = '#444';
+      nameInput.style.color = 'white';
+      nameInput.style.border = '2px solid #81029b';
+      urlInput.style.backgroundColor = '#444';
+      urlInput.style.color = 'white';
+      urlInput.style.border = '2px solid #81029b';
+    } else {
+      div.classList.remove('editing');
+      nameInput.style.backgroundColor = '#666';
+      nameInput.style.color = 'black';
+      nameInput.style.border = '1px solid #777';
+      urlInput.style.backgroundColor = '#666';
+      urlInput.style.color = 'black';
+      urlInput.style.border = '1px solid #777';
+    }
+  });
     div.appendChild(editButton);
 
-    const deleteButton = document.createElement('button');
-    deleteButton.textContent = '🗑️';
-    deleteButton.title = 'Delete';
-    deleteButton.addEventListener('click', () => endpointsList.removeChild(div));
+  const deleteButton = document.createElement('button');
+  deleteButton.className = 'icon-btn delete-endpoint';
+  deleteButton.innerHTML = '<svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M7 2a2 2 0 0 0-2 2v1H3.5a.5.5 0 0 0 0 1h.54l.82 9.016A2 2 0 0 0 6.856 17h6.288a2 2 0 0 0 1.996-1.984L15.96 6H16.5a.5.5 0 0 0 0-1H15V4a2 2 0 0 0-2-2H7Zm6 3H7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1ZM8.5 8.5a.5.5 0 0 1 .5.5v5a.5.5 0 1 1-1 0V9a.5.5 0 0 1 .5-.5Zm3 .5v5a.5.5 0 1 0 1 0V9a.5.5 0 0 0-1 0Z"/></svg>';
+  deleteButton.title = 'Delete';
+  deleteButton.addEventListener('click', () => openDeleteEndpointModal(div));
     div.appendChild(deleteButton);
 
     endpointsList.appendChild(div);
@@ -508,13 +530,13 @@ saveRestreamBtn.addEventListener('click', () => {
     .then(res => res.json())
     .then(resp => {
         if (resp.status === 'ok') {
-            alert('Restream settings saved!');
+      showToast('Restream settings saved!','success');
             restreamOptions.style.display = 'none';
         } else {
-            alert('Error: ' + (resp.error || JSON.stringify(resp)));
+      showToast('Error: ' + (resp.error || JSON.stringify(resp)),'error');
         }
     })
-    .catch(err => alert('Communication error: ' + err));
+    .catch(err => showToast('Communication error: ' + err,'error'));
 });
 
 // Skjul ved Avbryt
@@ -554,6 +576,121 @@ if (platformsHelpBtn && platformsTooltip) {
 function stopStream() {
     sendRequest('/obs/stop_stream');
 }
+
+(function(){
+  function upd(id, state, label){
+    const dot = document.getElementById(id);
+    const lbl = document.getElementById(id+'-label');
+    if(!dot) return;
+    dot.classList.remove('hc-ok','hc-bad','hc-off');
+    if(state === 'ok'){ dot.classList.add('hc-ok'); }
+    else if(state === 'error'){ dot.classList.add('hc-bad'); }
+    else { dot.classList.add('hc-off'); }
+    if(lbl) lbl.textContent = label || state || '—';
+  }
+  async function pollHealth(){
+    try{
+      const r = await fetch('/api/sg_status');
+      if(!r.ok) throw 0;
+      const j = await r.json();
+      // Chatbot mapping
+      upd('hc-chatbot', j.chatbot_state || 'offline', j.chatbot_state);
+  // StreamGuard service
+  upd('hc-streamguard', j.streamguard_state || 'offline', j.streamguard_state);
+      // SLS
+      upd('hc-sls', j.sls_state || 'error', j.sls_state);
+      // OBS (treat missing as offline)
+      upd('hc-obs', j.obs_connected === true ? 'ok' : (j.sg_error ? 'error':'offline'), j.obs_connected===true?'ok':(j.sg_error?'error':'offline'));
+      // Twitch Events WS
+      upd('hc-raidws', j.raid_ws === true ? 'ok' : (j.sg_error?'error':'offline'), j.raid_ws===true?'ok':(j.sg_error?'error':'offline'));
+      // Raid AutoStop subscription
+      upd('hc-raidsub', j.raid_subscribed === true ? 'ok' : (j.sg_error?'error':'offline'), j.raid_subscribed===true?'ok':(j.sg_error?'error':'offline'));
+      // Token
+      upd('hc-token', j.token_valid === true ? 'ok' : 'error', j.token_valid===true ? ('exp '+Math.floor(j.token_expires_in/60)+'m') : 'invalid');
+    }catch(e){
+  ['hc-chatbot','hc-streamguard','hc-sls','hc-obs','hc-raidws','hc-raidsub','hc-token'].forEach(id=>{
+        upd(id,'error','error');
+      });
+    }finally{
+      setTimeout(pollHealth, 5000);
+    }
+  }
+  pollHealth();
+})();
+
+function openStopStreamModal(){
+  const m = document.getElementById('stop-stream-modal');
+  if(m) m.classList.remove('hidden');
+}
+function closeStopStreamModal(){
+  const m = document.getElementById('stop-stream-modal');
+  if(m) m.classList.add('hidden');
+}
+
+// Delete endpoint modal handling
+let _endpointPendingDelete = null;
+function openDeleteEndpointModal(rowEl){
+  _endpointPendingDelete = rowEl;
+  const m = document.getElementById('delete-endpoint-modal');
+  if(m) m.classList.remove('hidden');
+}
+function closeDeleteEndpointModal(){
+  const m = document.getElementById('delete-endpoint-modal');
+  if(m) m.classList.add('hidden');
+  _endpointPendingDelete = null;
+}
+// Koble knapper når DOM er klar (hvis du ikke allerede har DOMContentLoaded lytter)
+document.addEventListener('DOMContentLoaded', () => {
+  const ok = document.getElementById('confirm-stop-stream');
+  const cancel = document.getElementById('cancel-stop-stream');
+  if(ok){
+    ok.addEventListener('click', () => {
+      closeStopStreamModal();
+      // Kaller eksisterende stopStream() funksjon
+      if(typeof stopStream === 'function') stopStream();
+    });
+  }
+  if(cancel) cancel.addEventListener('click', closeStopStreamModal);
+  // Lukk ved ESC
+  document.addEventListener('keydown', e => {
+    if(e.key === 'Escape') closeStopStreamModal();
+  });
+  // Klikk på backdrop
+  const modal = document.getElementById('stop-stream-modal');
+  if(modal){
+    modal.addEventListener('click', e => {
+      if(e.target === modal) closeStopStreamModal();
+    });
+  }
+
+  // Delete endpoint modal wiring
+  const delModal = document.getElementById('delete-endpoint-modal');
+  const delOk = document.getElementById('confirm-delete-endpoint');
+  const delCancel = document.getElementById('cancel-delete-endpoint');
+  if(delOk){
+    delOk.addEventListener('click', () => {
+      if(_endpointPendingDelete && _endpointPendingDelete.parentElement){
+        _endpointPendingDelete.parentElement.removeChild(_endpointPendingDelete);
+        showToast('Endpoint deleted','success');
+      }
+      closeDeleteEndpointModal();
+    });
+  }
+  if(delCancel) delCancel.addEventListener('click', closeDeleteEndpointModal);
+  if(delModal){
+    delModal.addEventListener('click', e => { if(e.target === delModal) closeDeleteEndpointModal(); });
+  }
+  document.addEventListener('keydown', e => { if(e.key==='Escape') closeDeleteEndpointModal(); });
+});
+
+function _setDot(id, ok){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.classList.remove('sg-ok','sg-bad');
+  if(ok === true) el.classList.add('sg-ok');
+  else if(ok === false) el.classList.add('sg-bad');
+}
+
 Object.assign(window, {
   sendRequest,
   turnOnMiniPC,
@@ -567,5 +704,5 @@ Object.assign(window, {
   applyRaid,
   cancelRaid,
   showRaidChannelForm,
-  stopStream // <- export so onclick finds it
+  stopStream
 });

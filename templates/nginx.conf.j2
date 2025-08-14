@@ -22,20 +22,19 @@ http {
 
 # RTMP-server
 rtmp {
-  server {
-    listen 1935;
-    chunk_size 4096;
+    server {
+        listen 1935;
+        chunk_size 4096;
 
-    application live {
-      live on;
-      record off;
+        application live {
+            live on;
+            record off;
 
-      {# Generer én push-linje per aktivert endpoint #}
-      {% for ep in push_endpoints %}
-      {% if ep.enabled %}
-      push {{ ep.url }};
-      {% endif %}
-      {% endfor %}
+            {% for ep in push_endpoints %}
+            {% if ep.enabled %}
+            push {{ ep.url }};
+            {% endif %}
+            {% endfor %}
+        }
     }
-  }
 }
