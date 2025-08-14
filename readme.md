@@ -3,7 +3,9 @@
 </p>
 
 <h1 align="center">Stream Control & Stream Guard</h1>
-
+<br><p align="center" width="100%">
+<a href="https://www.buymeacoffee.com/kimsec">
+<img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&amp;emoji=%E2%98%95&amp;slug=kimsec&amp;button_colour=FFDD00&amp;font_colour=000000&amp;font_family=Inter&amp;outline_colour=000000&amp;coffee_colour=ffffff" alt="Buy Me A Coffee"></a></p>
 <p align="center">
   <a href="https://github.com/Kimsec/Stream-Control/releases/latest">
     <img src="https://img.shields.io/github/v/release/kimsec/Stream-Control" alt="Latest Release">
@@ -11,8 +13,8 @@
   <a href="https://github.com/Kimsec/Stream-Control">
     <img src="https://img.shields.io/badge/Platform-Self%20Hosted-success" alt="Self Hosted">
   </a>
-  <a href="https://www.buymeacoffee.com/kimsec">
-    <img src="https://img.shields.io/badge/Support-Buy%20Me%20a%20Coffee-FFDD00?logo=buymeacoffee&logoColor=000" alt="Support">
+  <a href="https://donation.kimsec.net">
+    <img src="https://img.shields.io/badge/Support-By%20Donation-FFDD00?logo=buymeacoffee&logoColor=000" alt="Support">
   </a>
 </p>
 
@@ -43,7 +45,6 @@ bitrate-based scene switching. Designed for unattended, long-running operation.
 - [Troubleshooting](#troubleshooting)
 - [Extending](#extending)
 - [Contributing](#contributing)
-- [License](#license)
 
 ---
 
@@ -54,9 +55,9 @@ Stream-Control consists of:
 2. A companion background process (Stream Guard) that:
    - Monitors bitrate via a stats endpoint (e.g. SRS / SLS / nginx module JSON)
    - Switches scenes automatically (LIVE <-> lowbitrate)
-   - Listens for Twitch outgoing raids (EventSub WebSocket) and can stop the stream
-   - Exposes a local health JSON polled by the panel
-3. An overlay alert channel (WebSocket) for visual/audio notifications (e.g. low bitrate).
+   - Listens for Twitch outgoing raids (EventSub WebSocket) and can stop the stream after raid.
+   - Health check panel on front page. 
+3. An overlay alert channel (WebSocket) for audio notifications (e.g. low bitrate, connection restored).
 
 No database—simple JSON + environment variables.
 
@@ -71,10 +72,10 @@ No database—simple JSON + environment variables.
 - Automatic Twitch user token maintenance (refresh & persistence).
 - EventSub (channel.raid) with reconnect + revocation recovery + resubscribe.
 - Restream editor (writes JSON, regenerates nginx push config, auto reload).
-- Wake-on-LAN / restart / shutdown for remote Mini-PC.
-- Optional systemd chatbot control.
-- Overlay alert push (low / restored).
-- Health/status indicators (OBS, raid WS, subscription, token, etc.).
+- Wake-on-LAN / restart / shutdown for remote streaming-PC.
+- Optional systemd chat relay bot control.
+- alert TTS (low / restored).
+- Health/status indicators (OBS, StreamGuard, Chatbot, SLS, subscription, token, etc.).
 
 ---
 
@@ -172,13 +173,13 @@ Production:
 
 Section | Purpose
 --------|--------
+Control | Start/stop stream, change scenes.
 Status | OBS state, scene, health dots
 Twitch | Title/category edit, raid
 Restream | Manage push endpoints
 Mini-PC | Wake / reboot / shutdown
 Bot | Control a systemd service (optional)
 Chat | Embedded Twitch chat
-Overlay | (Browser Source usage)
 
 Toasts provide immediate feedback.
 
@@ -219,7 +220,7 @@ Scene transitions also dispatch overlay alerts.
 ## Alert Overlay
 
 - Send: `POST /api/alert` `{ "type": "low"|"restored", "message": "..." }`
-- Display: `/overlay` (add to OBS as Browser Source)
+- Display: handy for streaming to get alerted if bad connection etc.
 - Transport: WebSocket (stateless; waits for next event)
 
 ---
@@ -283,12 +284,6 @@ Ideas:
 2. Branch `feat/<name>`
 3. Commit with clear messages
 4. Open PR (Problem / Solution / Test)
-
----
-
-## License
-
-Add your preferred license (e.g. MIT).
 
 ---
 
