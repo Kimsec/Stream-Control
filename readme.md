@@ -3,23 +3,20 @@
 </p>
 
 <h1 align="center">Stream Control & Stream Guard</h1>
-
+<br><p align="center" width="100%">
+<a href="https://www.buymeacoffee.com/kimsec">
+<img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&amp;emoji=%E2%98%95&amp;slug=kimsec&amp;button_colour=FFDD00&amp;font_colour=000000&amp;font_family=Inter&amp;outline_colour=000000&amp;coffee_colour=ffffff" alt="Buy Me A Coffee"></a></p>
 <p align="center">
   <a href="https://github.com/Kimsec/Stream-Control/releases/latest">
-    <img src="https://img.shields.io/github/v/release/kimsec/Stream-Control" alt="Latest Release">
-  </a>
+  <img src="https://img.shields.io/github/v/release/kimsec/Stream-Control" alt="Latest Release"></a>
   <a href="https://github.com/Kimsec/Stream-Control">
-    <img src="https://img.shields.io/badge/Platform-Self%20Hosted-success" alt="Self Hosted">
-  </a>
+  <img src="https://img.shields.io/badge/Platform-Self%20Hosted-success" alt="Self Hosted"></a>
   <a href="https://www.buymeacoffee.com/kimsec">
-    <img src="https://img.shields.io/badge/Support-Buy%20Me%20a%20Coffee-FFDD00?logo=buymeacoffee&logoColor=000" alt="Support">
-  </a>
+  <img src="https://img.shields.io/badge/Support-By%20donation-FFDD00?logo=buymeacoffee&logoColor=000" alt="Support"></a>
 </p>
 
 <p align="center">
-A lightweight self‑hosted control panel and autonomous guardian for live streaming.
-Manage OBS, Twitch metadata, outgoing raids, restream destinations, and automatic
-bitrate-based scene switching. Designed for unattended, long-running operation.
+A unified streaming control panel that centralizes Twitch management, OBS scene automation, bitrate failover, raid auto-stop, admin chat commands, BELABOX + restream endpoint oversight, alert sounds, chat viewing, and remote stream PC control—built to keep a flaky connection stable and reactive from one dashboard.
 </p>
 
 ---
