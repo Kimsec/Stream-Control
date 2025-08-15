@@ -597,7 +597,14 @@ function stopStream() {
       upd('hc-chatbot', j.chatbot_state || 'offline', j.chatbot_state);
   // StreamGuard service
   upd('hc-streamguard', j.streamguard_state || 'offline', j.streamguard_state);
-      // SLS
+  // ChatGuard (consider chat_ws AND chat_subscribed)
+  const chatOk = (j.chat_ws === true && j.chat_subscribed === true);
+  let chatLabel = 'offline';
+  if (j.chat_ws === true && j.chat_subscribed !== true) chatLabel = 'ws';
+  if (chatOk) chatLabel = 'ok';
+  upd('hc-chatguard', chatOk ? 'ok' : (j.chat_ws ? 'error' : 'offline'), chatLabel);
+
+  // SLS
       upd('hc-sls', j.sls_state || 'error', j.sls_state);
       // OBS (treat missing as offline)
       upd('hc-obs', j.obs_connected === true ? 'ok' : (j.sg_error ? 'error':'offline'), j.obs_connected===true?'ok':(j.sg_error?'error':'offline'));
@@ -608,7 +615,7 @@ function stopStream() {
       // Token
       upd('hc-token', j.token_valid === true ? 'ok' : 'error', j.token_valid===true ? ('exp '+Math.floor(j.token_expires_in/60)+'m') : 'invalid');
     }catch(e){
-  ['hc-chatbot','hc-streamguard','hc-sls','hc-obs','hc-raidws','hc-raidsub','hc-token'].forEach(id=>{
+  ['hc-chatbot','hc-streamguard','hc-chatguard','hc-sls','hc-obs','hc-raidws','hc-raidsub','hc-token'].forEach(id=>{
         upd(id,'error','error');
       });
     }finally{

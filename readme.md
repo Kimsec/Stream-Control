@@ -3,9 +3,7 @@
 </p>
 
 <h1 align="center">Stream Control & Stream Guard</h1>
-<br><p align="center" width="100%">
-<a href="https://www.buymeacoffee.com/kimsec">
-<img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&amp;emoji=%E2%98%95&amp;slug=kimsec&amp;button_colour=FFDD00&amp;font_colour=000000&amp;font_family=Inter&amp;outline_colour=000000&amp;coffee_colour=ffffff" alt="Buy Me A Coffee"></a></p>
+
 <p align="center">
   <a href="https://github.com/Kimsec/Stream-Control/releases/latest">
     <img src="https://img.shields.io/github/v/release/kimsec/Stream-Control" alt="Latest Release">
@@ -13,8 +11,8 @@
   <a href="https://github.com/Kimsec/Stream-Control">
     <img src="https://img.shields.io/badge/Platform-Self%20Hosted-success" alt="Self Hosted">
   </a>
-  <a href="https://donation.kimsec.net">
-    <img src="https://img.shields.io/badge/Support-By%20Donation-FFDD00?logo=buymeacoffee&logoColor=000" alt="Support">
+  <a href="https://www.buymeacoffee.com/kimsec">
+    <img src="https://img.shields.io/badge/Support-Buy%20Me%20a%20Coffee-FFDD00?logo=buymeacoffee&logoColor=000" alt="Support">
   </a>
 </p>
 
@@ -45,6 +43,7 @@ bitrate-based scene switching. Designed for unattended, long-running operation.
 - [Troubleshooting](#troubleshooting)
 - [Extending](#extending)
 - [Contributing](#contributing)
+- [License](#license)
 
 ---
 
@@ -55,9 +54,9 @@ Stream-Control consists of:
 2. A companion background process (Stream Guard) that:
    - Monitors bitrate via a stats endpoint (e.g. SRS / SLS / nginx module JSON)
    - Switches scenes automatically (LIVE <-> lowbitrate)
-   - Listens for Twitch outgoing raids (EventSub WebSocket) and can stop the stream after raid.
-   - Health check panel on front page. 
-3. An overlay alert channel (WebSocket) for audio notifications (e.g. low bitrate, connection restored).
+   - Listens for Twitch outgoing raids (EventSub WebSocket) and can stop the stream
+   - Exposes a local health JSON polled by the panel
+3. An overlay alert channel (WebSocket) for visual/audio notifications (e.g. low bitrate).
 
 No database—simple JSON + environment variables.
 
@@ -72,10 +71,11 @@ No database—simple JSON + environment variables.
 - Automatic Twitch user token maintenance (refresh & persistence).
 - EventSub (channel.raid) with reconnect + revocation recovery + resubscribe.
 - Restream editor (writes JSON, regenerates nginx push config, auto reload).
-- Wake-on-LAN / restart / shutdown for remote streaming-PC.
-- Optional systemd chat relay bot control.
-- alert TTS (low / restored).
-- Health/status indicators (OBS, StreamGuard, Chatbot, SLS, subscription, token, etc.).
+- Wake-on-LAN / restart / shutdown for remote Mini-PC.
+- Optional systemd chatbot control.
+- Overlay alert push (low / restored).
+- Health/status indicators (OBS, raid WS, subscription, token, etc.).
+- Chat commands (!start, !live, !brb, !fix, !stop) via EventSub chat messages (admins only, case sensitive).
 
 ---
 
@@ -147,6 +147,7 @@ Restream | CONFIG_PATH, NGINX_CONF_OUT
 Mini-PC | MINI_PC_USER, MINI_PC_IP, MAC_ADDRESS
 Twitch | TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, TWITCH_BROADCASTER_ID, TWITCH_OAUTH_TOKEN, TWITCH_REFRESH_TOKEN, TWITCH_TOKENS_PATH
 Raid | RAID_AUTO_STOP_ENABLED, RAID_AUTO_STOP_DELAY
+Chat Commands | TWITCH_ADMINS, STARTING_SCENE_NAME, BRB_SCENE_NAME
 Behavior | WAIT_FOR_STREAM_START, EXIT_WHEN_STREAM_ENDS, IDLE_WHEN_STREAM_ENDS
 Overlay | ALERTS_BASE_URL
 
@@ -173,13 +174,13 @@ Production:
 
 Section | Purpose
 --------|--------
-Control | Start/stop stream, change scenes.
 Status | OBS state, scene, health dots
 Twitch | Title/category edit, raid
 Restream | Manage push endpoints
 Mini-PC | Wake / reboot / shutdown
 Bot | Control a systemd service (optional)
 Chat | Embedded Twitch chat
+Overlay | (Browser Source usage)
 
 Toasts provide immediate feedback.
 
@@ -202,6 +203,40 @@ Workflow:
 - Health shows validity + remaining lifetime.
 - Revoked tokens trigger subscription re-attempt after refresh.
 
+Both `app.py` and `stream_guard.py` use the same token file (`twitch_tokens.json`, path set by `TWITCH_TOKENS_PATH`).
+- app.py is the ONLY process that refreshes / rotates the access + refresh tokens (writes the file).
+- stream_guard.py is read‑only: it loads the current access token to:
+  - Subscribe to EventSub topics (raids, chat messages)
+  - Send chat messages (Helix Chat API) for feedback / raid completion
+Required scopes for full functionality (recommend granting when generating initial tokens):
+- user:read:chat
+- user:write:chat
+- channel:manage:broadcast (title/category updates)
+- channel:read:subscriptions (optional future use)
+If a token is revoked or expires, app.py refresh logic updates the file; guard detects validity returning to healthy automatically.
+
+### Chat Commands
+Chat commands are processed via the Twitch EventSub `channel.chat.message` subscription (NOT IRC).  
+There is no separate IRC OAuth token; the normal user access token (from `twitch_tokens.json`) must include chat scopes.
+
+Only admins listed in `TWITCH_ADMINS` (comma separated, lowercase) are authorized.
+Commands are CASE SENSITIVE and must match exactly:
+
+Command | Action
+------- | ------
+`!start` | Start the stream (ignored if already live) then switch to `STARTING_SCENE_NAME` (if set) or stay on current
+`!live`  | Switch to `LIVE_SCENE_NAME`
+`!brb`   | Switch to `BRB_SCENE_NAME`
+`!fix`   | Switch to BRB then back to LIVE after ~1 second
+`!stop`  | Stop the current stream
+
+Environment variables affecting commands:
+- `TWITCH_ADMINS=admin1,admin2`
+- `STARTING_SCENE_NAME=Starting soon` (optional)
+- `BRB_SCENE_NAME=BRB` (optional; defaults handled in code)
+
+If scenes are missing in OBS, commands log errors but do not crash the guard.
+
 ---
 
 ## Bitrate & Raid Automation
@@ -220,7 +255,7 @@ Scene transitions also dispatch overlay alerts.
 ## Alert Overlay
 
 - Send: `POST /api/alert` `{ "type": "low"|"restored", "message": "..." }`
-- Display: handy for streaming to get alerted if bad connection etc.
+- Display: `/overlay` (add to OBS as Browser Source)
 - Transport: WebSocket (stateless; waits for next event)
 
 ---
@@ -284,6 +319,12 @@ Ideas:
 2. Branch `feat/<name>`
 3. Commit with clear messages
 4. Open PR (Problem / Solution / Test)
+
+---
+
+## License
+
+Add your preferred license (e.g. MIT).
 
 ---
 
