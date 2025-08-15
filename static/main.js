@@ -634,6 +634,28 @@ function closeStopStreamModal(){
   if(m) m.classList.add('hidden');
 }
 
+// ---- Power (Restart/Shutdown) confirmation modal ----
+let _pendingPowerAction = null; // 'restart' | 'shutdown'
+function openPowerConfirm(kind){
+  _pendingPowerAction = kind;
+  const m = document.getElementById('power-confirm-modal');
+  const title = document.getElementById('power-modal-title');
+  const text = document.getElementById('power-modal-text');
+  if(title){ title.textContent = kind === 'restart' ? 'Restart Mini-PC?' : 'Shutdown Mini-PC?'; }
+  if(text){ text.textContent = kind === 'restart' ? 'Are you sure you want to restart the Mini-PC?' : 'Are you sure you want to shutdown the Mini-PC?'; }
+  if(m) m.classList.remove('hidden');
+}
+function _closePowerConfirm(){
+  const m = document.getElementById('power-confirm-modal');
+  if(m) m.classList.add('hidden');
+  _pendingPowerAction = null;
+}
+function _confirmPowerAction(){
+  if(_pendingPowerAction === 'restart') restartMiniPC();
+  else if(_pendingPowerAction === 'shutdown') turnOffMiniPC();
+  _closePowerConfirm();
+}
+
 // Delete endpoint modal handling
 let _endpointPendingDelete = null;
 function openDeleteEndpointModal(rowEl){
@@ -688,6 +710,15 @@ document.addEventListener('DOMContentLoaded', () => {
     delModal.addEventListener('click', e => { if(e.target === delModal) closeDeleteEndpointModal(); });
   }
   document.addEventListener('keydown', e => { if(e.key==='Escape') closeDeleteEndpointModal(); });
+
+  // Power modal wiring
+  const pConfirm = document.getElementById('power-modal-confirm');
+  const pCancel = document.getElementById('power-modal-cancel');
+  const pModal = document.getElementById('power-confirm-modal');
+  if(pConfirm) pConfirm.addEventListener('click', _confirmPowerAction);
+  if(pCancel) pCancel.addEventListener('click', _closePowerConfirm);
+  if(pModal) pModal.addEventListener('click', e => { if(e.target === pModal) _closePowerConfirm(); });
+  document.addEventListener('keydown', e => { if(e.key==='Escape') _closePowerConfirm(); });
 });
 
 function _setDot(id, ok){
@@ -711,5 +742,6 @@ Object.assign(window, {
   applyRaid,
   cancelRaid,
   showRaidChannelForm,
-  stopStream
+  stopStream,
+  openPowerConfirm
 });

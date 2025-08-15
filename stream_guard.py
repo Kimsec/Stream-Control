@@ -48,7 +48,7 @@ EVENTSUB_WS   = "wss://eventsub.wss.twitch.tv/ws"
 SUBSCRIBE_URL = "https://api.twitch.tv/helix/eventsub/subscriptions"
 RESUB_MIN_INTERVAL_SEC = 30   # don't spam subscribe attempts
 
-# === ChatGuard additions (EventSub chat message, NOT IRC) ===
+# === ChatGuard additions ===
 # Admin list (comma separated, lowercase) controlling in‑chat commands (!start,!live,!brb,!fix,!stop)
 TWITCH_ADMINS = os.getenv("TWITCH_ADMINS", "")
 CHAT_ADMINS = {a.strip().lower() for a in TWITCH_ADMINS.split(",") if a.strip()}
@@ -130,7 +130,7 @@ async def _eventsub_subscribe_raid(http: aiohttp.ClientSession, session_id: str)
 # === ChatGuard additions ===
 async def _eventsub_subscribe_chat(http: aiohttp.ClientSession, session_id: str) -> bool:
     """
-    Subscribe to EventSub channel.chat.message (no IRC connection needed).
+    Subscribe to EventSub channel.chat.message.
     Requires user token with user:read:chat scope.
     """
     token = _current_user_token()

@@ -34,8 +34,8 @@
         <div class="button-container">
             <p id="minipcStatus" class="status">Checking status...</p>
             <button id="turnOnBtn" onclick="turnOnMiniPC()">Turn On</button>
-            <button id="turnOffBtn" onclick="turnOffMiniPC()">Shutdown</button>
-            <button id="restartBtn" onclick="restartMiniPC()">Restart</button>
+            <button id="turnOffBtn" onclick="openPowerConfirm('shutdown')">Shutdown</button>
+            <button id="restartBtn" onclick="openPowerConfirm('restart')">Restart</button>
         </div><br><br>
                 <div id="health-panel" class="health-panel">
                     <h3 class="health-title">Health checks:</h3>
@@ -145,6 +145,18 @@
         </div>
       </div>
     </div>
+
+        <!-- Power (Restart/Shutdown) Modal -->
+        <div id="power-confirm-modal" class="sg-modal hidden">
+            <div class="sg-modal__dialog" style="border-color:#81029b;">
+                <h2 id="power-modal-title" style="margin-top:0;">Confirm Action</h2>
+                <p id="power-modal-text" style="margin:6px 0 18px;font-size:18px;">Are you sure?</p>
+                <div class="sg-modal__actions">
+                    <button id="power-modal-confirm" class="danger">Confirm</button>
+                    <button id="power-modal-cancel" class="secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
 
         <!-- Delete Endpoint Modal -->
         <div id="delete-endpoint-modal" class="sg-modal hidden" aria-hidden="true" role="dialog" aria-labelledby="del-endpoint-title">
