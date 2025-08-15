@@ -35,15 +35,15 @@ bitrate-based scene switching. Designed for unattended, long-running operation.
 - [Running the Services](#running-the-services)
 - [Using the Web UI](#using-the-web-ui)
 - [Restream Management](#restream-management)
-- [Twitch Integration & Tokens](#twitch-integration--tokens)
+- [Chat Commands](#chat-commands)
 - [Bitrate & Raid Automation](#bitrate--raid-automation)
-- [Alert Overlay](#alert-overlay)
+- [Twitch Integration & Tokens](#twitch-integration--tokens)
+- [Alert Sound](#alert-sound)
 - [Health Indicators](#health-indicators)
 - [Security Recommendations](#security-recommendations)
 - [Troubleshooting](#troubleshooting)
 - [Extending](#extending)
 - [Contributing](#contributing)
-- [License](#license)
 
 ---
 
@@ -196,24 +196,6 @@ Workflow:
 
 ---
 
-## Twitch Integration & Tokens
-
-- Automatic refresh when invalid or near expiry.
-- Shared file `twitch_tokens.json` used by Stream Guard.
-- Health shows validity + remaining lifetime.
-- Revoked tokens trigger subscription re-attempt after refresh.
-
-Both `app.py` and `stream_guard.py` use the same token file (`twitch_tokens.json`, path set by `TWITCH_TOKENS_PATH`).
-- app.py is the ONLY process that refreshes / rotates the access + refresh tokens (writes the file).
-- stream_guard.py is read‑only: it loads the current access token to:
-  - Subscribe to EventSub topics (raids, chat messages)
-  - Send chat messages (Helix Chat API) for feedback / raid completion
-Required scopes for full functionality (recommend granting when generating initial tokens):
-- user:read:chat
-- user:write:chat
-- channel:manage:broadcast (title/category updates)
-- channel:read:subscriptions (optional future use)
-If a token is revoked or expires, app.py refresh logic updates the file; guard detects validity returning to healthy automatically.
 
 ### Chat Commands
 Chat commands are processed via the Twitch EventSub `channel.chat.message` subscription.
@@ -252,10 +234,31 @@ Scene transitions also dispatch overlay alerts.
 
 ---
 
-## Alert Overlay
 
+## Twitch Integration & Tokens
+
+- Automatic refresh when invalid or near expiry.
+- Shared file `twitch_tokens.json` used by Stream Guard.
+- Health shows validity + remaining lifetime.
+- Revoked tokens trigger subscription re-attempt after refresh.
+
+Both `app.py` and `stream_guard.py` use the same token file (`twitch_tokens.json`, path set by `TWITCH_TOKENS_PATH`).
+- app.py is the ONLY process that refreshes / rotates the access + refresh tokens (writes the file).
+- stream_guard.py is read‑only: it loads the current access token to:
+  - Subscribe to EventSub topics (raids, chat messages)
+  - Send chat messages (Helix Chat API) for feedback / raid completion
+Required scopes for full functionality (recommend granting when generating initial tokens):
+- user:read:chat
+- user:write:chat
+- channel:manage:broadcast (title/category updates)
+- channel:read:subscriptions (optional future use)
+If a token is revoked or expires, app.py refresh logic updates the file; guard detects validity returning to healthy automatically.
+
+
+## Alert Sound
+
+- Alerts when low bitrate / Connection restored (TTS on website)
 - Send: `POST /api/alert` `{ "type": "low"|"restored", "message": "..." }`
-- Display: `/overlay` (add to OBS as Browser Source)
 - Transport: WebSocket (stateless; waits for next event)
 
 ---
@@ -319,12 +322,6 @@ Ideas:
 2. Branch `feat/<name>`
 3. Commit with clear messages
 4. Open PR (Problem / Solution / Test)
-
----
-
-## License
-
-Add your preferred license (e.g. MIT).
 
 ---
 
