@@ -305,11 +305,14 @@ Check logs for both processes first.
 ## Extending
 
 Ideas:
-- More EventSub topics
-- Additional overlay alert kinds
-- Metrics exporter
+
+- HTTP Security headers (CSP, HSTS, Referrer-Policy)
+- “Grace window” by the start (ignore first X sec because of unstable output).
+- UI Timeline for logs (behind a button)
+- Watchdog thread: if main loop stalls > timeout → process exit (systemd restarter)
+- Async HTTP
+- More metrics
 - Role-based access
-- Webhook integration → alerts
 
 ---
 
