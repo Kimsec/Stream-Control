@@ -176,11 +176,11 @@ Section | Purpose
 --------|--------
 Status | OBS state, scene, health dots
 Twitch | Title/category edit, raid
-Restream | Manage push endpoints
-Mini-PC | Wake / reboot / shutdown
+Restream | Manage push endpoints / Restream endpoints
+Stream-PC | Wake / reboot / shutdown
 Bot | Control a systemd service (optional)
 Chat | Embedded Twitch chat
-Overlay | (Browser Source usage)
+Alerts | Sounds when visiting Website
 
 Toasts provide immediate feedback.
 
@@ -216,8 +216,8 @@ Required scopes for full functionality (recommend granting when generating initi
 If a token is revoked or expires, app.py refresh logic updates the file; guard detects validity returning to healthy automatically.
 
 ### Chat Commands
-Chat commands are processed via the Twitch EventSub `channel.chat.message` subscription (NOT IRC).  
-There is no separate IRC OAuth token; the normal user access token (from `twitch_tokens.json`) must include chat scopes.
+Chat commands are processed via the Twitch EventSub `channel.chat.message` subscription.
+A valid user access token (loaded from `twitch_tokens.json`) is required and must include the chat scopes: `user:read:chat and user:write:chat`.
 
 Only admins listed in `TWITCH_ADMINS` (comma separated, lowercase) are authorized.
 Commands are CASE SENSITIVE and must match exactly:
