@@ -42,7 +42,6 @@ A unified streaming control panel that centralizes Twitch management, OBS scene 
 - [Troubleshooting](#troubleshooting)
 - [Extending](#extending)
 - [Contributing](#contributing)
-- [IP Banning](#ip-banning)
 
 ---
 
