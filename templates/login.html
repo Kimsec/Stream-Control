@@ -1,97 +1,135 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <link rel="apple-touch-icon" sizes="192x192" href="https://kimsec.net/download/caxyhh/icon-192.png">
+    <link rel="icon" type="image/png" href="https://kimsec.net/download/caxyhh/icon_logo.png" />
+    <link rel="manifest" href="https://kimsec.net/download/caxyhh/manifest.json">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" />
     <title>Password Required</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        form {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            width: 90%; /* Sørger for at det tar opp hele bredden */
-        }
+        *, *::before, *::after { box-sizing: border-box; }
         body {
-            background-color: black;
+            background: linear-gradient(135deg, #4b0082, #000000);
             color: white;
-            font-family: Arial, sans-serif;
+            font-family: 'Arial', sans-serif;
             margin: 0;
             padding: 0;
-            min-height: 100vh;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
+            min-height: 100vh;
         }
         .content {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            flex-grow: 1;
+            padding: 20px;
+            width: 100%;
+            max-width: 400px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        }
+        img {
+            width: 120px;
+            height: auto;
+            margin-bottom: 20px;
+        }
+        h1 {
+            font-size: 36px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        p {
+            font-size: 16px;
+            text-align: center;
+            line-height: 1.5;
+            margin: 10px 0;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
             width: 100%;
         }
         input[type="password"], button {
-            font-size: 30px;
-            padding: 20px;
-            margin: 20px;
-            border-radius: 20px;
+            font-size: 18px;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 10px;
             border: none;
+            width: 100%;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+        input[type="password"] {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
             text-align: center;
-	    width: 80%;
-	    max-width: 250px;
+        }
+        input[type="password"]::placeholder {
+            color: #ccc;
         }
         button {
-            font-size: 28px;  /* Larger font size for the button */
-            padding: 20px 40px;  /* Larger padding for a bigger button */
-            margin: 20px;
-            border-radius: 20px;
-            border: none;
-            background-color: #4b4b4b;
+            background: #81029b;
             color: white;
             cursor: pointer;
-            width: 65%;        /* Make button take up more width */
-            max-width: 250px; 
+            transition: background 0.3s;
         }
         button:hover {
-            background-color: #81029b;
-        }
-        h1 {
-            font-size: 46px;
-            text-align: center;
+            background: #a50fcf;
         }
         footer {
-            width: 100%;
+            margin-top: 20px;
             text-align: center;
-            font-size: 16px;
+            font-size: 14px;
             color: #ccc;
-            padding: 10px 0;
+        }
+        .text-danger,
+        .heart-icon {
+        color: #ff3b3b;
         }
     </style>
 </head>
 <body>
     <div class="content">
-        <h1>Password Required</h1>
+        <img src="https://kimsec.net/download/caxyhh/icon_logo.png" alt="Logo" />
+        {% if not banned %}
+            <h1>Stream Control</h1>
+        {% endif %}
         {% if error %}
             <p style="color: red;">{{ error }}</p>
         {% endif %}
-        <form method="post" action="{{ url_for('login') }}">
-            <input type="password" name="password" placeholder="Enter password" id="passwordInput">
-            <button type="submit">Submit</button>
-        </form>
+        {% if banned %}
+            <p>Your IP is blocked. Please contact admin to restore access.</p>
+        {% else %}
+            <form method="post" action="{{ url_for('login') }}" id="loginForm">
+                <input type="password" name="password" placeholder="Enter password" id="passwordInput" autocomplete="current-password">
+                <button type="submit">Login</button>
+            </form>
+        {% endif %}
     </div>
-    <footer>
-        Kimsec © <span id="year"></span> <span style="color: #d14;">♥</span>
+
+    <footer class="site-footer">
+        © <span id="year"></span> All Rights Reserved. Made with
+        <i class="fa-solid fa-heart heart-icon" aria-hidden="true"></i> by Kim AH
+    </footer>
     </footer>
     <script>
         document.getElementById("year").textContent = new Date().getFullYear();
-        document.getElementById("passwordInput").addEventListener("keyup", function(event) {
-            if (event.key === "Enter") {
-                event.preventDefault();
-                this.form.submit();
-            }
-        });
+        const pwd = document.getElementById("passwordInput");
+        if(pwd){
+            pwd.addEventListener("keyup", function(event) {
+                if (event.key === "Enter") {
+                    event.preventDefault();
+                    this.form.submit();
+                }
+            });
+            try{pwd.focus();}catch(e){}
+        }
     </script>
 </body>
 </html>

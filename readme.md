@@ -41,6 +41,7 @@ A unified streaming control panel that centralizes Twitch management, OBS scene 
 - [Troubleshooting](#troubleshooting)
 - [Extending](#extending)
 - [Contributing](#contributing)
+- [IP Banning](#ip-banning)
 
 ---
 
@@ -284,6 +285,28 @@ Color coding in UI: ok / offline / error.
 - Strong secrets (FLASK_SECRET_KEY, LOGIN_PASSWORD)
 - Restrict token file permissions (600)
 - Never commit `.env` or live stream keys
+
+
+
+### IP Banning
+
+Stream-Control now includes support for IP banning to protect against unwanted connections or abuse. When an IP is banned:
+
+- Connections from the banned IP address are immediately blocked.
+- A log entry is created to indicate that a blocked IP attempted to connect.
+- Banned IPs can be managed via the `bans.json` file or directly through the admin control panel at `/bans`.
+
+#### How to Enable IP Banning
+
+1. IP banning is enabled by default. 
+
+
+
+#### Important Notes
+
+- Ensure the `bans.json` file is protected against unauthorized access.
+- Use this feature cautiously to avoid accidentally blocking legitimate users.
+- Unbanning IPs can be done easily via the admin control panel at `/bans`.
 
 ---
 

@@ -4,6 +4,7 @@ from datetime import timedelta
 from dotenv import load_dotenv
 import os, subprocess, requests, json, time
 from threading import Lock, Thread, Event  # added Thread & Event for token maint
+from ipaddress import ip_address
 from flask_sock import Sock
 
 app = Flask(__name__)           # OPPRETT APP FØRST
@@ -32,6 +33,99 @@ TWITCH_TOKENS_PATH     = os.getenv("TWITCH_TOKENS_PATH", os.path.join(os.path.di
 
 LOGIN_PASSWORD         = os.getenv("LOGIN_PASSWORD")
 
+# --- Simple IP ban / login-attempt tracking ---
+BAN_MAX_ATTEMPTS       = int(os.getenv("BAN_MAX_ATTEMPTS", "3"))
+BAN_DATA_PATH          = os.getenv("BAN_DATA_PATH", os.path.join(os.path.dirname(__file__), "bans.json"))
+_ban_lock = Lock()
+_ban_cache = {"attempts": {}, "bans": {}}  # structure: attempts[ip] = {count:int, first_ts, last_ts, agents:set}; bans[ip] = {...}
+
+def _load_ban_file():
+    global _ban_cache
+    try:
+        with open(BAN_DATA_PATH, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            # normalize sets
+            for ip, rec in data.get('attempts', {}).items():
+                if isinstance(rec.get('agents'), list):
+                    rec['agents'] = set(rec['agents'])
+            _ban_cache = data
+            # ensure keys
+            _ban_cache.setdefault('attempts', {})
+            _ban_cache.setdefault('bans', {})
+        else:
+            _ban_cache = {"attempts": {}, "bans": {}}
+    except Exception:
+        _ban_cache = {"attempts": {}, "bans": {}}
+
+def _save_ban_file():
+    tmp = {"attempts": {}, "bans": {}}
+    for ip, rec in _ban_cache.get('attempts', {}).items():
+        tmp['attempts'][ip] = {**rec, 'agents': sorted(list(rec.get('agents', [])))[:10]}
+    tmp['bans'] = _ban_cache.get('bans', {})
+    try:
+        with open(BAN_DATA_PATH, 'w', encoding='utf-8') as f:
+            json.dump(tmp, f, indent=2)
+        try:
+            os.chmod(BAN_DATA_PATH, 0o600)
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+_load_ban_file()
+
+def _client_ip() -> str:
+    # Cloudflare tunnel: prefer CF-Connecting-IP header
+    hdrs = request.headers
+    ip = hdrs.get('CF-Connecting-IP') or hdrs.get('X-Forwarded-For', '').split(',')[0].strip() or request.remote_addr or '0.0.0.0'
+    # basic sanitation
+    try:
+        ip_obj = ip_address(ip)
+        return str(ip_obj)
+    except Exception:
+        return '0.0.0.0'
+
+def _is_ip_banned(ip: str) -> bool:
+    with _ban_lock:
+        return ip in _ban_cache['bans']
+
+def _register_failed_attempt(ip: str, user_agent: str):
+    now = time.time()
+    with _ban_lock:
+        attempts = _ban_cache['attempts'].setdefault(ip, {"count":0, "first_ts":now, "last_ts":now, "agents": set()})
+        attempts['count'] += 1
+        attempts['last_ts'] = now
+        attempts['agents'].add(user_agent[:160])  # truncate UA
+        if attempts['count'] >= BAN_MAX_ATTEMPTS and ip not in _ban_cache['bans']:
+            _ban_cache['bans'][ip] = {
+                "banned_ts": now,
+                "reason": f"Exceeded {BAN_MAX_ATTEMPTS} failed login attempts",
+                "attempts": attempts['count'],
+                "agents": sorted(list(attempts['agents']))[:10]
+            }
+        _save_ban_file()
+
+def _register_success(ip: str):
+    with _ban_lock:
+        if ip in _ban_cache['attempts']:
+            del _ban_cache['attempts'][ip]
+            _save_ban_file()
+
+def _list_bans():
+    with _ban_lock:
+        return _ban_cache['bans'].copy()
+
+def _unban_ip(ip: str) -> bool:
+    with _ban_lock:
+        if ip in _ban_cache['bans']:
+            del _ban_cache['bans'][ip]
+        if ip in _ban_cache['attempts']:
+            del _ban_cache['attempts'][ip]
+        _save_ban_file()
+        return True
+    return False
+
 app.secret_key = FLASK_SECRET_KEY
 app.permanent_session_lifetime = timedelta(days=7)
 
@@ -48,21 +142,52 @@ def login_required(f):
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     error = None
+    ip = _client_ip()
+    if _is_ip_banned(ip):
+        # Return 403 with generic message (avoid enumerating policy)
+        return render_template('login.html', error="Access denied. Too many attempts.", banned=True), 403
     if request.method == 'POST':
         entered_password = request.form.get('password', '')
         if LOGIN_PASSWORD is not None and entered_password == LOGIN_PASSWORD:
             session.permanent = True
             session['authenticated'] = True
+            _register_success(ip)
             return redirect(url_for('home'))
         else:
-            error = "Incorrect password. Please try again."
-    return render_template('login.html', error=error)
+            _register_failed_attempt(ip, request.headers.get('User-Agent','?'))
+            # Optional: do not indicate remaining attempts to prevent probing
+            banned_now = _is_ip_banned(ip)
+            error = "Incorrect password." if not banned_now else "Access denied. Too many attempts."
+            if banned_now:
+                return render_template('login.html', error=error, banned=True), 403
+    return render_template('login.html', error=error, banned=False)
 
 
 @app.route('/')
 @login_required
 def home():
     return render_template('control.html')
+
+@app.route('/bans')
+@login_required
+def bans_page():
+    return render_template('bans.html')
+
+@app.get('/api/bans')
+@login_required
+def api_bans():
+    data = _list_bans()
+    return jsonify({"bans": data, "count": len(data)})
+
+@app.post('/api/unban')
+@login_required
+def api_unban():
+    js = request.get_json(silent=True) or {}
+    ip = (js.get('ip') or '').strip()
+    if not ip:
+        return jsonify({"ok": False, "error": "Missing ip"}), 400
+    ok = _unban_ip(ip)
+    return jsonify({"ok": ok})
 
 @app.route('/logout')
 def logout():

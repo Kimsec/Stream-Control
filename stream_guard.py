@@ -23,6 +23,7 @@ BITRATE_HIGH_KBPS: int = int(os.getenv("BITRATE_HIGH_KBPS"))
 
 POLL_INTERVAL_SEC: float = float(os.getenv("POLL_INTERVAL_SEC"))
 LOW_CONSEC_SAMPLES: int = int(os.getenv("LOW_CONSEC_SAMPLES"))
+LIVE_SCENE_LOW_GRACE_SEC: float = float(os.getenv("LIVE_SCENE_LOW_GRACE_SEC", "3"))  # Ignorer lave målinger rett etter bytte til LIVE
 
 REQUEST_TIMEOUT: float = float(os.getenv("REQUEST_TIMEOUT"))
 
@@ -49,11 +50,12 @@ SUBSCRIBE_URL = "https://api.twitch.tv/helix/eventsub/subscriptions"
 RESUB_MIN_INTERVAL_SEC = 30   # don't spam subscribe attempts
 
 # === ChatGuard additions ===
-# Admin list (comma separated, lowercase) controlling in‑chat commands (!start,!live,!brb,!fix,!stop)
-TWITCH_ADMINS = os.getenv("TWITCH_ADMINS", "")
+TWITCH_ADMINS = os.getenv("TWITCH_ADMINS")
 CHAT_ADMINS = {a.strip().lower() for a in TWITCH_ADMINS.split(",") if a.strip()}
-STARTING_SCENE_NAME: str = os.getenv("STARTING_SCENE_NAME")  # optional scene used by !start
-BRB_SCENE_NAME: str = os.getenv("BRB_SCENE_NAME", "BRB")     # fallback BRB scene for !brb / !fix
+
+STARTING_SCENE_NAME: str = os.getenv("STARTING_SCENE_NAME")
+BRB_SCENE_NAME: str = os.getenv("BRB_SCENE_NAME")
+OFFLINE_SCENE_NAME: str = os.getenv("OFFLINE_SCENE_NAME")
 
 
 def _current_user_token() -> str:
@@ -129,10 +131,7 @@ async def _eventsub_subscribe_raid(http: aiohttp.ClientSession, session_id: str)
 
 # === ChatGuard additions ===
 async def _eventsub_subscribe_chat(http: aiohttp.ClientSession, session_id: str) -> bool:
-    """
-    Subscribe to EventSub channel.chat.message.
-    Requires user token with user:read:chat scope.
-    """
+    """Subscribe to channel.chat.message for the broadcaster, using the same user token."""
     token = _current_user_token()
     if not token:
         print("[ChatGuard] No user token available; cannot subscribe to chat messages.")
@@ -186,15 +185,6 @@ async def _eventsub_subscribe_chat(http: aiohttp.ClientSession, session_id: str)
 CHAT_RESUB_MIN_INTERVAL_SEC = 30
 
 async def _chat_guard():
-    """
-    EventSub WebSocket loop handling chat messages -> admin command execution.
-    Commands (case sensitive):
-      !start -> start stream (if not live) then switch to STARTING_SCENE_NAME (if provided)
-      !live  -> switch to LIVE_SCENE_NAME
-      !brb   -> switch to BRB_SCENE_NAME
-      !fix   -> BRB_SCENE_NAME then LIVE_SCENE_NAME after ~1s
-      !stop  -> stop stream
-    """
     if not (TWITCH_CLIENT_ID and TWITCH_BROADCASTER_ID):
         print("[ChatGuard] missing TWITCH_* vars; disabled")
         return
@@ -354,6 +344,10 @@ async def _raid_watcher():
                                         try:
                                             c = connect_obs()
                                             c.stop_stream()
+                                            try:
+                                                c.set_current_program_scene(OFFLINE_SCENE_NAME)
+                                            except Exception as sce:
+                                                print(f"[RaidGuard] failed switching to offline scene '{OFFLINE_SCENE_NAME}':", sce)
                                             # Etter at stream er stoppet, send melding i Twitch chat hvis aktivert
                                             if RAID_SEND_CHAT_MESSAGE:
                                                 try:
@@ -484,13 +478,25 @@ def _obs_fix_brb_then_live(brb_scene: str, live_scene: str, delay_sec: float = 1
         return False
 
 def _obs_stop_stream() -> bool:
+    """Stop stream (if active) and switch to OFFLINE_SCENE_NAME."""
     try:
         c = connect_obs()
+        # Stop stream if active
         try:
             if is_streaming(c):
                 c.stop_stream()
         except Exception:
-            c.stop_stream()
+            # fallback second attempt
+            try:
+                c.stop_stream()
+            except Exception:
+                pass
+        # Attempt to switch scene
+        try:
+            if OFFLINE_SCENE_NAME:
+                c.set_current_program_scene(OFFLINE_SCENE_NAME)
+        except Exception as sce:
+            print(f"[ChatGuard][OBS] failed switching to offline scene '{OFFLINE_SCENE_NAME}':", sce)
         return True
     except Exception as e:
         print("[ChatGuard][OBS] stop_stream failed:", e)
@@ -692,6 +698,9 @@ def main() -> None:
     last_not_allowed_scene: Optional[str] = None
     cl: Optional[ReqClient] = None
     reconnect_wait = OBS_RECONNECT_INTERVAL_SEC
+    prev_scene: Optional[str] = None
+    scene_enter_time: float = 0.0
+    live_grace_logged: bool = False
 
     def _obs_port_open(host: str, port: int, timeout: float = 1.0) -> bool:
         try:
@@ -757,6 +766,12 @@ def main() -> None:
                 reconnect_wait = min(max(OBS_RECONNECT_INTERVAL_SEC, reconnect_wait * 1.5), MAX_RECONNECT_WAIT_SEC)
                 continue
 
+            # Scene change tracking
+            if current_scene != prev_scene:
+                prev_scene = current_scene
+                scene_enter_time = time.time()
+                live_grace_logged = False  # reset log flag for new scene
+
             # Streaming is active; reset waiting flag
             waiting_logged = False
 
@@ -766,10 +781,19 @@ def main() -> None:
 
             if current_scene == LIVE_SCENE_NAME:
                 last_not_allowed_scene = None
-                if bitrate < BITRATE_LOW_KBPS:
-                    low_streak += 1
-                else:
+                elapsed_in_live = time.time() - scene_enter_time if scene_enter_time else 9999
+                in_grace = elapsed_in_live < LIVE_SCENE_LOW_GRACE_SEC
+                if in_grace:
+                    # Ignorer lave målinger i grace-vinduet
                     low_streak = 0
+                    if not live_grace_logged:
+                        print(f"[StreamGuard] LIVE grace {LIVE_SCENE_LOW_GRACE_SEC:.1f}s - ignoring low bitrate samples (elapsed {elapsed_in_live:.2f}s, bitrate {bitrate} kbps)")
+                        live_grace_logged = True
+                else:
+                    if bitrate < BITRATE_LOW_KBPS:
+                        low_streak += 1
+                    else:
+                        low_streak = 0
 
                 if low_streak >= LOW_CONSEC_SAMPLES:
                     try:
