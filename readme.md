@@ -38,6 +38,7 @@ A unified streaming control panel that centralizes Twitch management, OBS scene 
 - [Alert Sound](#alert-sound)
 - [Health Indicators](#health-indicators)
 - [Security Recommendations](#security-recommendations)
+- [Ip Banning](#ip-banning)
 - [Troubleshooting](#troubleshooting)
 - [Extending](#extending)
 - [Contributing](#contributing)
@@ -288,7 +289,7 @@ Color coding in UI: ok / offline / error.
 
 
 
-### IP Banning
+## IP Banning
 
 Stream-Control now includes support for IP banning to protect against unwanted connections or abuse. When an IP is banned:
 
