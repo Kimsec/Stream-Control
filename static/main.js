@@ -1,5 +1,16 @@
 document.getElementById("year").textContent = new Date().getFullYear();
 let lastStreaming = null;
+// Enkel cache for channel info (title/category) for raskere UX
+let _channelInfoCache = { data: null, ts: 0 };
+const CHANNEL_INFO_TTL_MS = 300_000; // 5 min (mindre hyppig refresh)
+
+function prefetchChannelInfo(force=false){
+  if(!force && _channelInfoCache.data && (Date.now() - _channelInfoCache.ts) < CHANNEL_INFO_TTL_MS) return; // already fresh enough
+  fetch('/twitch/channel_info')
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(d => { _channelInfoCache = { data: d, ts: Date.now() }; })
+    .catch(()=>{});
+}
 // --- Toast system ---
 function showToast(msg, type='info', opts={}){
   const host = document.getElementById('toast-host');
@@ -50,20 +61,31 @@ function turnOnMiniPC() { sendRequest('/poweron'); }
 function turnOffMiniPC() { sendRequest('/shutdown'); }
 function restartMiniPC() { sendRequest('/restart'); }
 
+// Helper: render status text with trailing health dot (like previous emoji placement)
+function setStatusWithDot(el, text, ok){
+  if(!el) return;
+  el.textContent = text;
+  const dot = document.createElement('span');
+  dot.className = 'hc-dot ' + (ok ? 'hc-ok' : 'hc-bad');
+  dot.setAttribute('aria-hidden','true');
+  dot.style.marginLeft = '8px';
+  el.appendChild(dot);
+}
+
 function checkMiniPCStatus() {
     fetch('/status')
         .then(res => res.json())
         .then(data => {
             const el = document.getElementById("minipcStatus");
-            if (data.status === "on") {
-                el.textContent = "Status: ON 🟢";
-                el.className = "status on";
+      if (data.status === "on") {
+        setStatusWithDot(el, 'Status: ON', true);
+        el.className = "status on";
                 document.getElementById("turnOnBtn").style.display = "none";
                 document.getElementById("restartBtn").style.display = "inline-block";
                 document.getElementById("turnOffBtn").style.display = "inline-block";
             } else {
-                el.textContent = "Status: OFF 🔴";
-                el.className = "status off";
+        setStatusWithDot(el, 'Status: OFF', false);
+        el.className = "status off";
                 document.getElementById("turnOnBtn").style.display = "inline-block";
                 document.getElementById("restartBtn").style.display = "none";
                 document.getElementById("turnOffBtn").style.display = "none";
@@ -132,23 +154,71 @@ function cancelStreamTitle() {
 }
 
 function showStreamTitleForm() {
-    fetch('/twitch/channel_info')
-        .then(res => res.json())
-        .then(data => {
-            if (data.title) {
-                document.getElementById("streamTitleInput").value = data.title; // Sett nåværende tittel
-            }
-            if (data.category) {
-                document.getElementById("categorySearchInput").value = data.category.name; // Sett nåværende kategori
-                document.getElementById("categorySearchInput").dataset.categoryId = data.category.id; // Lagre kategori-ID
-            }
-            document.getElementById("streamTitleForm").style.display = "block";
-            document.getElementById("showStreamTitleInput").style.display = "none";
-        })
-        .catch(err => {
-            console.error("Error fetching stream info:", err);
-            showToast("Error fetching current stream info.", 'error');
-        });
+  // Sørg for at skjemaet ligger rett etter knappen
+  ensureFormAfterButton('showStreamTitleInput','streamTitleForm');
+  const form = document.getElementById('streamTitleForm');
+  const btn  = document.getElementById('showStreamTitleInput');
+  const titleInput = document.getElementById('streamTitleInput');
+  const catInput = document.getElementById('categorySearchInput');
+  const resultsContainer = document.getElementById('categoryResults');
+
+  if(btn) btn.style.display = 'none';
+  if(form) form.style.display = 'block';
+
+  // Sett umiddelbart fra cache hvis mulig (ingen blocking følelse)
+  const cacheFresh = _channelInfoCache.data && (Date.now()-_channelInfoCache.ts) < CHANNEL_INFO_TTL_MS;
+  if(cacheFresh){
+    const d = _channelInfoCache.data;
+    if(d.title) titleInput.value = d.title;
+    if(d.category){
+      catInput.value = d.category.name;
+      catInput.dataset.categoryId = d.category.id;
+    }
+  } else {
+    // Vis midlertidig placeholder mens vi venter
+    titleInput.placeholder = 'Loading current title…';
+    catInput.placeholder = 'Loading category…';
+  }
+
+  // Vis liten loading indikator (fjernes når fetch ferdig)
+  let loader = null;
+  if(!cacheFresh){
+    loader = document.createElement('div');
+    loader.id = 'streamTitleLoadingTmp';
+    loader.style.fontSize = '12px';
+    loader.style.opacity = '.65';
+    loader.style.marginTop = '6px';
+    if(resultsContainer && !document.getElementById('streamTitleLoadingTmp')){
+      resultsContainer.parentElement.insertBefore(loader, resultsContainer);
+    } else if(form && !document.getElementById('streamTitleLoadingTmp')) {
+      form.appendChild(loader);
+    }
+  }
+
+  const thisFetchController = new AbortController();
+  // Abort ev. eldre pågående (lagre på window)
+  if(window.__channelInfoCtl){ try{ window.__channelInfoCtl.abort(); }catch(e){} }
+  window.__channelInfoCtl = thisFetchController;
+
+  // Bare hent hvis ikke fresh
+  if(!cacheFresh) fetch('/twitch/channel_info', { signal: thisFetchController.signal })
+    .then(res => res.json())
+    .then(data => {
+      _channelInfoCache = { data, ts: Date.now() };
+      if(data.title) titleInput.value = data.title;
+      if(data.category){
+        catInput.value = data.category.name;
+        catInput.dataset.categoryId = data.category.id;
+      }
+    })
+    .catch(err => {
+      if(err.name === 'AbortError') return; // ignorert
+      console.error('Error fetching stream info:', err);
+      showToast('Error fetching current stream info.','error');
+    })
+    .finally(()=>{
+      if(loader && loader.parentElement) loader.parentElement.removeChild(loader);
+    });
 }
 
 // Raid Channel
@@ -179,6 +249,8 @@ function cancelRaid() {
 }
 
 function showRaidChannelForm() {
+  // Sørg for at skjemaet ligger rett etter knappen
+  ensureFormAfterButton('showRaidChannelInput','raidChannelForm');
     document.getElementById("raidChannelForm").style.display = "block";
     document.getElementById("showRaidChannelInput").style.display = "none";
 }
@@ -242,7 +314,7 @@ function checkStreamStatus() {
         return;
       }
 
-      status.textContent = isStreamingNow ? "Status: Streaming 🟢" : "Status: Offline 🔴";
+      setStatusWithDot(status, isStreamingNow ? 'Status: Streaming' : 'Status: Offline', isStreamingNow);
       status.className = "status " + (isStreamingNow ? "on" : "off");
 
             const currentScene = (data.currentScene || "—");
@@ -297,51 +369,90 @@ if (audioBanner) {
 }
 
 function searchCategory() {
-    const query = document.getElementById("categorySearchInput").value.trim().toLowerCase();
-    if (!query) {
-        document.getElementById("categoryResults").innerHTML = ""; // Tøm tidligere resultater hvis input er tomt
-        return;
-    }
+  // Debounced søk: vent til bruker har stoppet å skrive
+  const inputEl = document.getElementById("categorySearchInput");
+  if(!inputEl) return;
+  const resultsContainer = document.getElementById("categoryResults");
+  const raw = inputEl.value;
+  const query = raw.trim().toLowerCase();
 
-    fetch(`/twitch/search_categories?query=${query}`)
-        .then(res => res.json())
-        .then(data => {
-            const resultsContainer = document.getElementById("categoryResults");
-            resultsContainer.innerHTML = ""; // Tøm tidligere resultater
+  // Init globale (på window) én gang
+  if(!window.__catSearch){
+    window.__catSearch = {
+      timer: null,
+      controller: null,
+      lastIssuedQuery: '',
+      DEBOUNCE_MS: 300
+    };
+  }
+  const st = window.__catSearch;
 
-            if (data.data && data.data.length > 0) {
-                // Beregn likhet mellom søkestrengen og kategorinavnene
-                const categoriesWithSimilarity = data.data.map(category => ({
-                    name: category.name,
-                    id: category.id,
-                    similarity: calculateSimilarity(query, category.name.toLowerCase())
-                }));
+  // Avbryt pågående fetch hvis ny input kommer
+  if(st.controller){
+    st.controller.abort();
+    st.controller = null;
+  }
+  clearTimeout(st.timer);
 
-                // Sorter kategorier basert på likhet (høyest først)
-                categoriesWithSimilarity.sort((a, b) => b.similarity - a.similarity);
+  if(!query){
+    resultsContainer.innerHTML = "";
+    inputEl.dataset.categoryId = ""; // reset valgt
+    return;
+  }
+  // Minimum tegn før vi søker (unngå spam og brede treff)
+  if(query.length < 2){
+    resultsContainer.innerHTML = '<small style="opacity:.7;">Skriv minst 2 tegn…</small>';
+    return;
+  }
 
-                // Vis de 6 mest relevante treffene
-                categoriesWithSimilarity.slice(0, 6).forEach(category => {
-                    const button = document.createElement("button");
-                    button.textContent = category.name; // Vis kategorinavnet
-                    button.style.fontSize = "20px";
-                    button.style.margin = "5px";
-                    button.style.padding = "15px 20px";
-                    button.onclick = () => {
-                        document.getElementById("categorySearchInput").value = category.name; // Sett kategorinavnet
-                        document.getElementById("categorySearchInput").dataset.categoryId = category.id; // Lagre category_id
-                        resultsContainer.innerHTML = ""; // Fjern søkeresultatene
-                    };
-                    resultsContainer.appendChild(button);
-                });
-            } else {
-                resultsContainer.textContent = "No categories found.";
-            }
-        })
-        .catch(err => {
-            console.error("Error searching categories:", err);
-            document.getElementById("categoryResults").textContent = "Error searching categories.";
+  resultsContainer.innerHTML = '<small style="opacity:.5;">Søker…</small>';
+
+  st.timer = setTimeout(()=>{
+    // Capture query at tidspunkt for utsendt forespørsel
+    st.lastIssuedQuery = query;
+    st.controller = new AbortController();
+    fetch(`/twitch/search_categories?query=${encodeURIComponent(query)}`, { signal: st.controller.signal })
+      .then(res => {
+      if(!res.ok) throw new Error('HTTP '+res.status);
+      return res.json();
+      })
+      .then(data => {
+      // Hvis brukeren har skrevet mer etter at vi sendte forespørselen, ignorer resultat
+      if(inputEl.value.trim().toLowerCase() !== st.lastIssuedQuery) return;
+      resultsContainer.innerHTML = "";
+      if (data.data && data.data.length > 0) {
+        const categoriesWithSimilarity = data.data.map(category => ({
+          name: category.name,
+          id: category.id,
+          similarity: calculateSimilarity(query, category.name.toLowerCase())
+        }));
+        categoriesWithSimilarity.sort((a,b)=> b.similarity - a.similarity);
+        categoriesWithSimilarity.slice(0,6).forEach(category => {
+          const button = document.createElement('button');
+          button.textContent = category.name;
+          button.style.fontSize = '20px';
+          button.style.margin = '5px';
+          button.style.padding = '15px 20px';
+          button.addEventListener('click', () => {
+            inputEl.value = category.name;
+            inputEl.dataset.categoryId = category.id;
+            resultsContainer.innerHTML = '';
+          });
+          resultsContainer.appendChild(button);
         });
+      } else {
+        resultsContainer.textContent = 'No categories found.';
+      }
+      })
+      .catch(err => {
+      if(err.name === 'AbortError') return; // ignorert
+      console.error('Error searching categories:', err);
+      // Bare vis feilmelding hvis query fortsatt er lik
+      if(inputEl.value.trim().toLowerCase() === st.lastIssuedQuery)
+        resultsContainer.textContent = 'Error searching categories.';
+      })
+      .finally(()=>{ st.controller = null; });
+  }, st.DEBOUNCE_MS);
 }
 
 // Enkel funksjon for å beregne likhet mellom to strenger
@@ -369,7 +480,9 @@ const addEndpointBtn    = document.getElementById('addEndpoint');
 
 // Vis/restre restream-panel
 restreamBtn.addEventListener('click', () => {
-    restreamOptions.style.display = 'block';
+  restreamOptions.style.display = 'block';
+  // Skjul selve knappen for å matche oppførsel til Raid/Title
+  restreamBtn.style.display = 'none';
     fetch('/rtmp_endpoints.json')
         .then(r => r.json())
         .then(data => {
@@ -532,6 +645,7 @@ saveRestreamBtn.addEventListener('click', () => {
         if (resp.status === 'ok') {
       showToast('Restream settings saved!','success');
             restreamOptions.style.display = 'none';
+            restreamBtn.style.display = 'inline-block';
         } else {
       showToast('Error: ' + (resp.error || JSON.stringify(resp)),'error');
         }
@@ -542,6 +656,7 @@ saveRestreamBtn.addEventListener('click', () => {
 // Skjul ved Avbryt
 cancelRestreamBtn.addEventListener('click', () => {
     restreamOptions.style.display = 'none';
+  restreamBtn.style.display = 'inline-block';
 });
 
 // Tooltip toggle for Platforms help
@@ -595,6 +710,8 @@ function stopStream() {
       const j = await r.json();
       // Chatbot mapping
       upd('hc-chatbot', j.chatbot_state || 'offline', j.chatbot_state);
+      // Nginx mapping
+      upd('hc-nginx', j.nginx_state || 'offline', j.nginx_state);
   // StreamGuard service
   upd('hc-streamguard', j.streamguard_state || 'offline', j.streamguard_state);
   // ChatGuard (consider chat_ws AND chat_subscribed)
@@ -613,9 +730,11 @@ function stopStream() {
       // Raid AutoStop subscription
       upd('hc-raidsub', j.raid_subscribed === true ? 'ok' : (j.sg_error?'error':'offline'), j.raid_subscribed===true?'ok':(j.sg_error?'error':'offline'));
       // Token
-      upd('hc-token', j.token_valid === true ? 'ok' : 'error', j.token_valid===true ? ('exp '+Math.floor(j.token_expires_in/60)+'m') : 'invalid');
+    upd('hc-token', j.token_valid === true ? 'ok' : 'error', j.token_valid===true ? ('exp '+Math.floor(j.token_expires_in/60)+'m') : 'invalid');
+    // Optional system services (stunnel / stream-control) if backend later includes states; fallback offline
+  upd('hc-stunnel', j.stunnel_state || 'offline', j.stunnel_state || 'offline');
     }catch(e){
-  ['hc-chatbot','hc-streamguard','hc-chatguard','hc-sls','hc-obs','hc-raidws','hc-raidsub','hc-token'].forEach(id=>{
+  ['hc-chatbot','hc-nginx','hc-streamguard','hc-chatguard','hc-sls','hc-obs','hc-raidws','hc-raidsub','hc-token','hc-stunnel'].forEach(id=>{
         upd(id,'error','error');
       });
     }finally{
@@ -625,6 +744,186 @@ function stopStream() {
   pollHealth();
 })();
 
+// --- Logs Panel ---
+let _logsWS = null;
+let _logsWSService = null; // which service current WS follows
+let _currentLogService = 'streamguard';
+let followLogs = true;
+let _logSessionId = 0; // increments on each service load to ignore stale async events
+function toggleLogsPanel(){
+  const panel = document.getElementById('logs-panel');
+  if(!panel) return;
+  if(panel.classList.contains('hidden')){
+  // Read selected service from dropdown
+  const sel = document.getElementById('logs-service-select');
+  if(sel){ _currentLogService = sel.value || 'streamguard'; }
+    // Normalize default lines select (some browsers may not honor selected attr until user interaction)
+    const linesSel = document.getElementById('log-lines-select');
+    if(linesSel && !linesSel.value){
+      linesSel.value = '25';
+    }
+    panel.classList.remove('hidden');
+    loadLogs(_currentLogService, true);
+  } else {
+    closeLogsPanel();
+  }
+}
+function closeLogsPanel(){
+  const panel = document.getElementById('logs-panel');
+  if(panel) panel.classList.add('hidden');
+  if(_logsWS){ try{ _logsWS.close(); }catch(e){} _logsWS=null; }
+}
+function loadLogs(svc, startFollow){
+  _currentLogService = svc;
+  _logSessionId++;
+  const mySession = _logSessionId;
+  // Close any existing WS immediately to stop old stream
+  if(_logsWS){ try{ _logsWS.onmessage = null; _logsWS.close(); }catch(_){} _logsWS=null; }
+  _logsWSService = null;
+  const out = document.getElementById('logs-output');
+  if(!out) return;
+  out.innerHTML = '<span class="log-line log-line-loading">Loading logs...</span>';
+  const sel = document.getElementById('log-lines-select');
+  const lines = sel ? sel.value : '25';
+  fetch(`/api/logs?service=${encodeURIComponent(svc)}&lines=${lines}`)
+    .then(r=>r.json())
+    .then(j=>{
+      if(_logSessionId !== mySession) return; // stale response
+      if(!out) return;
+      out.innerHTML = '';
+      const arr = j && j.lines ? j.lines : [];
+      (Array.isArray(arr)?arr:[]).forEach(raw => appendLogDOM(raw));
+      out.scrollTop = out.scrollHeight;
+      if(document.getElementById('log-follow')?.checked && startFollow){
+        startLogFollow(mySession);
+      }
+    })
+    .catch(e=>{ if(out && _logSessionId===mySession) out.innerHTML = `<span class="log-line lvl-error">Error loading logs: ${e}</span>`; });
+}
+function startLogFollow(sessionId){
+  if(_logSessionId !== sessionId) return; // service changed before follow start
+  if(_logsWS){ try{ _logsWS.onmessage=null; _logsWS.close(); }catch(e){} }
+  const svc = _currentLogService;
+  const proto = (location.protocol === 'https:') ? 'wss:' : 'ws:';
+  _logsWS = new WebSocket(`${proto}//${location.host}/ws/logs?service=${encodeURIComponent(svc)}`);
+  _logsWSService = svc;
+  const mySession = sessionId;
+  _logsWS.onmessage = ev => {
+    if(_logSessionId !== mySession) return; // stale
+    if(_logsWSService !== _currentLogService) return; // switched already
+    const out = document.getElementById('logs-output');
+    if(!out) return;
+    try{
+      const msg = JSON.parse(ev.data);
+      if(msg.type === 'line'){
+        const atBottom = out.scrollTop + out.clientHeight >= out.scrollHeight - 5;
+        appendLogDOM(msg.data);
+        if(followLogs && atBottom) out.scrollTop = out.scrollHeight;
+      } else if(msg.type === 'error'){
+        appendLogDOM('[ERROR] '+msg.message, 'error');
+      }
+    }catch(e){}
+  };
+  _logsWS.onclose = ()=>{ if(_logsWS === this) _logsWS=null; };
+}
+function trimLogBuffer(out){
+  // Remove oldest DOM nodes when exceeding 6000 lines
+  while(out.children.length > 6000){
+    out.removeChild(out.firstChild);
+  }
+}
+function sanitizeLogLine(raw){
+  if(!raw) return '';
+  // Keep timestamp, drop process prefix before first colon
+  // Example: 2025-09-07T13:32:45+02:00 rustdesk python[666621]: [ChatGuard] stuff
+  const m = raw.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:[.,]\d+)?[+\-]\d{2}:?\d{2})\s+([^:]+:)?\s*(.*)$/);
+  if(m){
+    const ts = m[1];
+    const rest = m[3] || '';
+    return ts + ' ' + rest.trim();
+  }
+  return raw;
+}
+function classifyLog(line){
+  const u = line.toUpperCase();
+  if(u.includes('ERROR') || u.includes('EXCEPTION') || u.includes('TRACEBACK')) return 'lvl-error';
+  if(u.includes('WARN')) return 'lvl-warn';
+  if(u.includes('INFO')) return 'lvl-info';
+  if(u.includes('DEBUG')) return 'lvl-debug';
+  return 'lvl-normal';
+}
+function appendLogDOM(rawLine, forcedLevel){
+  const out = document.getElementById('logs-output');
+  if(!out) return;
+  const clean = sanitizeLogLine(rawLine);
+  const level = forcedLevel ? (`lvl-${forcedLevel}`) : classifyLog(clean);
+  // Split timestamp (first token matching ISO-like) from rest so all align
+  let ts = '';
+  let msgPart = clean;
+  const tsMatch = clean.match(/^(\d{4}-\d{2}-\d{2}T[^\s]+)\s+(.*)$/);
+  if(tsMatch){ ts = tsMatch[1]; msgPart = tsMatch[2]; }
+  // Reformat ISO timestamp to journalctl short style 'Mon DD HH:MM:SS:'
+  if(ts && /\d{4}-\d{2}-\d{2}T/.test(ts)){
+    try {
+      const d = new Date(ts);
+      if(!isNaN(d.getTime())){
+        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        const mon = months[d.getMonth()];
+        const day = String(d.getDate()).padStart(2,'0');
+        const hh = String(d.getHours()).padStart(2,'0');
+        const mm = String(d.getMinutes()).padStart(2,'0');
+        const ss = String(d.getSeconds()).padStart(2,'0');
+        ts = `${mon} ${day} ${hh}:${mm}:${ss}:`;
+      }
+    } catch(_) {}
+  }
+  const lineEl = document.createElement('div');
+  lineEl.className = 'log-line '+level;
+  const tsEl = document.createElement('span');
+  tsEl.className = 'log-ts';
+  tsEl.textContent = ts || '';
+  const msgEl = document.createElement('span');
+  msgEl.className = 'log-msg';
+  // Highlight first bracketed tag if present in message
+  const tagMatch = msgPart.match(/^(\[[^\]]+\])\s*(.*)$/);
+  if(tagMatch){
+    const tagEl = document.createElement('span');
+    tagEl.className = 'log-tag';
+    tagEl.textContent = tagMatch[1];
+    msgEl.appendChild(tagEl);
+    msgEl.appendChild(document.createTextNode(' '+tagMatch[2]));
+  } else {
+    msgEl.textContent = msgPart;
+  }
+  lineEl.appendChild(tsEl);
+  lineEl.appendChild(msgEl);
+  out.appendChild(lineEl);
+  trimLogBuffer(out);
+}
+// Service dropdown selector only
+document.addEventListener('change', e => {
+  if(e.target && e.target.id === 'logs-service-select'){
+    loadLogs(e.target.value, true);
+  }
+});
+// Lines select & follow checkbox
+ document.addEventListener('change', e => {
+   if(e.target && e.target.id === 'log-lines-select'){
+  // Changing line count: treat as fresh load; keep follow state but don't auto start if user unchecked
+  loadLogs(_currentLogService, document.getElementById('log-follow')?.checked === true);
+   } else if(e.target && e.target.id === 'log-follow'){
+     followLogs = !!e.target.checked;
+       if(followLogs){
+         // restart follow using current session id (no reload of historical lines)
+         startLogFollow(_logSessionId);
+       } else if(_logsWS){
+         try{ _logsWS.close(); }catch(_){ }
+         _logsWS=null;
+       }
+   }
+ });
+
+// --- Modal handling ---
 function openStopStreamModal(){
   const m = document.getElementById('stop-stream-modal');
   if(m) m.classList.remove('hidden');
@@ -656,6 +955,23 @@ function _confirmPowerAction(){
   _closePowerConfirm();
 }
 
+// ---- Repair Backend confirmation modal ----
+function openRepairConfirm(){
+  const m = document.getElementById('repair-confirm-modal');
+  if(m) m.classList.remove('hidden');
+}
+function _closeRepairConfirm(){
+  const m = document.getElementById('repair-confirm-modal');
+  if(m) m.classList.add('hidden');
+}
+function _confirmRepairAction(){
+  fetch('/repair', { method: 'POST' })
+    .then(res => res.text())
+    .then(t => showToast(t, 'success'))
+    .catch(err => showToast('Error: ' + err, 'error'));
+  _closeRepairConfirm();
+}
+
 // Delete endpoint modal handling
 let _endpointPendingDelete = null;
 function openDeleteEndpointModal(rowEl){
@@ -670,6 +986,16 @@ function closeDeleteEndpointModal(){
 }
 // Koble knapper når DOM er klar (hvis du ikke allerede har DOMContentLoaded lytter)
 document.addEventListener('DOMContentLoaded', () => {
+  // Initial justering i tilfelle rekkefølge har blitt endret ved render
+  ensureFormAfterButton('showStreamTitleInput','streamTitleForm');
+  ensureFormAfterButton('showRaidChannelInput','raidChannelForm');
+  // Oppdater cache hvis vinduet blir synlig igjen og OBS-fanen er aktiv
+  document.addEventListener('visibilitychange', () => {
+    if(!document.hidden){
+      const obsTab = document.querySelector('.tab.active[data-tab="obs"]');
+      if(obsTab) prefetchChannelInfo(false);
+    }
+  });
   const ok = document.getElementById('confirm-stop-stream');
   const cancel = document.getElementById('cancel-stop-stream');
   if(ok){
@@ -719,6 +1045,24 @@ document.addEventListener('DOMContentLoaded', () => {
   if(pCancel) pCancel.addEventListener('click', _closePowerConfirm);
   if(pModal) pModal.addEventListener('click', e => { if(e.target === pModal) _closePowerConfirm(); });
   document.addEventListener('keydown', e => { if(e.key==='Escape') _closePowerConfirm(); });
+
+  // Repair modal wiring
+  const rConfirm = document.getElementById('repair-modal-confirm');
+  const rCancel = document.getElementById('repair-modal-cancel');
+  const rModal = document.getElementById('repair-confirm-modal');
+  if(rConfirm) rConfirm.addEventListener('click', _confirmRepairAction);
+  if(rCancel) rCancel.addEventListener('click', _closeRepairConfirm);
+  if(rModal) rModal.addEventListener('click', e => { if(e.target === rModal) _closeRepairConfirm(); });
+  document.addEventListener('keydown', e => { if(e.key==='Escape') _closeRepairConfirm(); });
+
+  // If logs panel is present and not yet populated (user might expect default 25 lines immediately)
+  const lp = document.getElementById('logs-panel');
+  const out = document.getElementById('logs-output');
+  if(lp && !lp.classList.contains('hidden') && out && out.childElementCount === 0){
+    const svcSel = document.getElementById('logs-service-select');
+    _currentLogService = svcSel ? svcSel.value : _currentLogService;
+    loadLogs(_currentLogService, true);
+  }
 });
 
 function _setDot(id, ok){
@@ -743,5 +1087,15 @@ Object.assign(window, {
   cancelRaid,
   showRaidChannelForm,
   stopStream,
-  openPowerConfirm
+  openPowerConfirm,
+  openRepairConfirm
 });
+
+// Hjelpefunksjon: sørger for at et skjemaelement ligger rett etter knappen sin
+function ensureFormAfterButton(buttonId, formId){
+  const btn = document.getElementById(buttonId);
+  const form = document.getElementById(formId);
+  if(btn && form && btn.nextElementSibling !== form){
+    btn.insertAdjacentElement('afterend', form);
+  }
+}

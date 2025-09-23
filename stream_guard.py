@@ -188,10 +188,7 @@ async def _chat_guard():
     if not (TWITCH_CLIENT_ID and TWITCH_BROADCASTER_ID):
         print("[ChatGuard] missing TWITCH_* vars; disabled")
         return
-    if not _current_user_token():
-        print("[ChatGuard] No user token found; chat.message requires a user access token. Disabled.")
-        return
-
+    # Don't exit permanently if token missing; wait until it appears
     ws_url = EVENTSUB_WS
     next_resub_attempt = 0.0
 
@@ -199,6 +196,11 @@ async def _chat_guard():
         return login.lower() in CHAT_ADMINS
 
     while True:
+        if not _current_user_token():
+            _h_set("chat_ws", False)
+            _h_set("chat_subscribed", False)
+            await asyncio.sleep(5)
+            continue
         try:
             async with aiohttp.ClientSession() as http:
                 async with http.ws_connect(ws_url, autoping=True) as ws:
@@ -209,7 +211,7 @@ async def _chat_guard():
                     while True:
                         now = time.time()
                         if session_id and not _h_snapshot().get("chat_subscribed") and _h_snapshot().get("token_valid") is True and now >= next_resub_attempt:
-                            ok = await _eventsub_subscribe_chat(http, session_id)
+                            _ = await _eventsub_subscribe_chat(http, session_id)
                             next_resub_attempt = now + CHAT_RESUB_MIN_INTERVAL_SEC
 
                         msg = await ws.receive()
@@ -238,33 +240,26 @@ async def _chat_guard():
                                     if not text.startswith("!"):
                                         continue
                                     if not _is_admin(login):
-                                        # ignore non-admins
                                         continue
 
                                     cmd = text.split()[0].lower()
                                     print(f"[ChatGuard] cmd from {login}: {cmd}")
 
                                     if cmd == "!start":
-                                        ok = _obs_start_and_switch(STARTING_SCENE_NAME)
-                                        if ok:
+                                        if _obs_start_and_switch(STARTING_SCENE_NAME):
                                             _send_chat_message("[bot] Stream started & switched to Starting soon!")
                                     elif cmd == "!live":
-                                        ok = _obs_switch_scene_safe(LIVE_SCENE_NAME)
-                                        if ok:
+                                        if _obs_switch_scene_safe(LIVE_SCENE_NAME):
                                             _send_chat_message("[bot] Changed to 'LIVE'")
                                     elif cmd == "!brb":
-                                        ok = _obs_switch_scene_safe(BRB_SCENE_NAME)
-                                        if ok:
+                                        if _obs_switch_scene_safe(BRB_SCENE_NAME):
                                             _send_chat_message("[bot] Changed to 'BRB'")
                                     elif cmd == "!fix":
-                                        ok = _obs_fix_brb_then_live(BRB_SCENE_NAME, LIVE_SCENE_NAME, delay_sec=1.0)
-                                        if ok:
+                                        if _obs_fix_brb_then_live(BRB_SCENE_NAME, LIVE_SCENE_NAME, delay_sec=1.0):
                                             _send_chat_message("[bot] trying to fix.")
                                     elif cmd == "!stop":
-                                        ok = _obs_stop_stream()
-                                        if ok:
+                                        if _obs_stop_stream():
                                             _send_chat_message("[bot] Stream ended")
-                                    # else: ignore other commands
 
                             elif mtype == "revocation":
                                 sub = data.get("payload", {}).get("subscription", {})
@@ -302,33 +297,34 @@ async def _raid_watcher():
     if not (TWITCH_CLIENT_ID and TWITCH_BROADCASTER_ID):
         print("[RaidGuard] missing TWITCH_* vars; disabled")
         return
-    if not _current_user_token():
-        print("[RaidGuard] No user token found; channel.raid requires a user access token. Disabled.")
-        return
-
+    # Instead of exiting if token missing, wait until it appears so service recovers after outages.
     ws_url = EVENTSUB_WS
     next_resub_attempt = 0.0
     while True:
+        if not _current_user_token():
+            _h_set("raid_ws", False)
+            _h_set("raid_subscribed", False)
+            await asyncio.sleep(5)
+            continue
         try:
             async with aiohttp.ClientSession() as http:
                 async with http.ws_connect(ws_url, autoping=True) as ws:
                     session_id = None
                     _h_set("raid_ws", True)
-                    # reset subscription flag until confirmed
                     _h_set("raid_subscribed", False)
+                    next_resub_attempt = 0.0
                     while True:
-                        # Periodic proactive resubscribe if needed
                         now = time.time()
                         if session_id and not _h_snapshot().get("raid_subscribed") and _h_snapshot().get("token_valid") is True and now >= next_resub_attempt:
-                            ok = await _eventsub_subscribe_raid(http, session_id)
-                            next_resub_attempt = now + (RESUB_MIN_INTERVAL_SEC if not ok else RESUB_MIN_INTERVAL_SEC)
+                            _ = await _eventsub_subscribe_raid(http, session_id)
+                            next_resub_attempt = now + RESUB_MIN_INTERVAL_SEC
                         msg = await ws.receive()
                         if msg.type == aiohttp.WSMsgType.TEXT:
                             data = json.loads(msg.data)
                             mtype = data.get("metadata", {}).get("message_type")
                             if mtype == "session_welcome":
                                 session_id = data["payload"]["session"]["id"]
-                                next_resub_attempt = 0.0  # allow immediate subscribe
+                                next_resub_attempt = 0.0
                             elif mtype == "session_reconnect":
                                 ws_url = data["payload"]["session"]["reconnect_url"]
                                 print("[RaidGuard] reconnect ->", ws_url)
@@ -348,7 +344,6 @@ async def _raid_watcher():
                                                 c.set_current_program_scene(OFFLINE_SCENE_NAME)
                                             except Exception as sce:
                                                 print(f"[RaidGuard] failed switching to offline scene '{OFFLINE_SCENE_NAME}':", sce)
-                                            # Etter at stream er stoppet, send melding i Twitch chat hvis aktivert
                                             if RAID_SEND_CHAT_MESSAGE:
                                                 try:
                                                     _send_chat_message(RAID_CHAT_MESSAGE)
@@ -357,14 +352,12 @@ async def _raid_watcher():
                                         except Exception as e:
                                             print("[RaidGuard] OBS stop failed:", e)
                             elif mtype == "revocation":
-                                # Subscription revoked (token revoked / permissions removed)
                                 sub = data.get("payload", {}).get("subscription", {})
                                 if sub.get("type") == "channel.raid":
                                     print("[RaidGuard] subscription revoked -> will re-subscribe when token valid again")
                                     _h_set("raid_subscribed", False)
                         elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
                             break
-                # leaving ws context (clean close)
                 _h_set("raid_ws", False)
         except Exception as e:
             print("[RaidGuard] WS loop error:", e)
@@ -574,6 +567,7 @@ _HEALTH = {
     "token_valid": None,
     "chat_ws": False,
     "chat_subscribed": False,
+    "raid_force_resub": False,
 }
 _HEALTH_LOCK = threading.Lock()
 
@@ -683,6 +677,7 @@ def start_token_validator(interval_sec=600):
                 # token restored -> force fresh subscription attempt
                 print("[RaidGuard] token valid again -> scheduling resubscribe")
                 _h_set("raid_subscribed", False)
+                _h_set("raid_force_resub", True)
             last_valid = cur
             time.sleep(interval_sec)
     threading.Thread(target=run, daemon=True, name="token-validator").start()

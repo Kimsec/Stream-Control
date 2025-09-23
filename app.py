@@ -510,6 +510,13 @@ def update_push():
 # --- Chatbot via systemd ---
 SERVICE_NAME = "chatbot"  # tilsvarer `systemctl start chatbot`
 STREAM_GUARD_SERVICE_NAME = os.getenv("STREAM_GUARD_SERVICE_NAME", "stream-guard")  # systemd navn for StreamGuard
+LOG_ALLOWED_SERVICES = {
+    "streamguard": STREAM_GUARD_SERVICE_NAME,
+    "chatbot": SERVICE_NAME,
+    "nginx": "nginx",
+    "stunnel": "stunnel-kick",
+    "streamcontrol": "stream-control"
+}
 
 def _systemctl(cmd: str):
     r = subprocess.run(["sudo", "-n", "systemctl", cmd, SERVICE_NAME],
@@ -541,6 +548,121 @@ def bot_stop():
 def bot_status():
     running = subprocess.run(["systemctl", "is-active", "--quiet", SERVICE_NAME]).returncode == 0
     return jsonify({"running": running})
+
+
+# --- Nginx via systemd ---
+@app.route('/nginx/start', methods=['POST'])
+@login_required
+def nginx_start():
+    try:
+        subprocess.run(["sudo", "-n", "systemctl", "start", "nginx"], check=True)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return (f"start error: {e}", 500)
+
+@app.route('/nginx/stop', methods=['POST'])
+@login_required
+def nginx_stop():
+    try:
+        subprocess.run(["sudo", "-n", "systemctl", "stop", "nginx"], check=True)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return (f"stop error: {e}", 500)
+
+@app.route('/nginx/status')
+@login_required
+def nginx_status():
+    running = subprocess.run(["systemctl", "is-active", "--quiet", "nginx"]).returncode == 0
+    return jsonify({"running": running})
+
+
+# --- Logs API & WebSocket ---
+def _journalctl_unit_lines(unit: str, lines: int = 200):
+    """Return last N lines from journal for unit. Safe: restrict unit to allowed list."""
+    try:
+        cmd = ["journalctl", "-u", unit, "-n", str(lines), "--no-pager", "-o", "short-iso"]
+        # If root needed, attempt sudo -n (non-interactive) but only if not root already
+        if os.geteuid() != 0:
+            cmd = ["sudo", "-n"] + cmd
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+        if r.returncode != 0:
+            out = (r.stderr or r.stdout).strip()
+            return False, out.splitlines()[-15:]
+        return True, r.stdout.rstrip().splitlines()
+    except Exception as e:
+        return False, [f"error: {e}"]
+
+@app.get('/api/logs')
+@login_required
+def api_logs():
+    svc = (request.args.get('service') or '').lower()
+    lines = request.args.get('lines', '200')
+    if not lines.isdigit():
+        return jsonify({"error": "invalid lines"}), 400
+    lines_i = max(10, min(1000, int(lines)))
+    if svc not in LOG_ALLOWED_SERVICES:
+        return jsonify({"error": "unknown service"}), 400
+    ok, data = _journalctl_unit_lines(LOG_ALLOWED_SERVICES[svc], lines_i)
+    return jsonify({"ok": ok, "service": svc, "unit": LOG_ALLOWED_SERVICES[svc], "lines": data})
+
+@sock.route('/ws/logs')
+def ws_logs(ws):
+    # simple stream of journalctl -f
+    # Expect query part: ...?service=streamguard
+    try:
+        # flask_sock doesn't parse query automatically; access environ
+        q = ws.environ.get('QUERY_STRING') or ''
+        params = dict(p.split('=',1) for p in q.split('&') if '=' in p)
+        svc = (params.get('service') or '').lower()
+        if svc not in LOG_ALLOWED_SERVICES:
+            ws.send(json.dumps({"type": "error", "message": "unknown service"}))
+            return
+        unit = LOG_ALLOWED_SERVICES[svc]
+        # Use -n 0 to avoid sending an extra backlog (we already fetched the initial lines via /api/logs)
+        # This prevents duplicate lines and makes the selected initial line count (e.g. 25) accurate immediately.
+        base_cmd = ["journalctl", "-u", unit, "-f", "-n", "0", "-o", "short-iso"]
+        if os.geteuid() != 0:
+            base_cmd = ["sudo", "-n"] + base_cmd
+        proc = subprocess.Popen(base_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+        ws.send(json.dumps({"type": "info", "message": f"following {unit}"}))
+        for line in proc.stdout:
+            line = line.rstrip('\n')
+            # basic size guard
+            if len(line) > 2000:
+                line = line[:2000] + '…'
+            try:
+                ws.send(json.dumps({"type": "line", "data": line}))
+            except Exception:
+                break
+        try:
+            proc.terminate()
+        except Exception:
+            pass
+    except Exception as e:
+        try:
+            ws.send(json.dumps({"type": "error", "message": str(e)}))
+        except Exception:
+            pass
+
+
+@app.route('/repair', methods=['POST'])
+@login_required
+def repair_backend():
+    try:
+        # Stop nginx.service
+        subprocess.run(["sudo", "-n", "systemctl", "stop", "nginx"], check=True)
+        time.sleep(1)
+        # Start nginx.service
+        subprocess.run(["sudo", "-n", "systemctl", "start", "nginx"], check=True)
+        time.sleep(1)
+        # Stop stream-guard.service
+        subprocess.run(["sudo", "-n", "systemctl", "stop", STREAM_GUARD_SERVICE_NAME], check=True)
+        time.sleep(1)
+        # Start stream-guard.service
+        subprocess.run(["sudo", "-n", "systemctl", "start", STREAM_GUARD_SERVICE_NAME], check=True)
+        return "Backend repair completed successfully", 200
+    except subprocess.CalledProcessError as e:
+        return f"Repair failed: {e}", 500
 
 
 @app.route('/manifest.json')
@@ -730,6 +852,22 @@ def sg_status():
         chatbot_state = 'error'
     base['chatbot_state'] = chatbot_state
 
+    # Nginx systemd state classification
+    nginx_state = 'offline'
+    try:
+        # active?
+        active_rc = subprocess.run(["systemctl", "is-active", "--quiet", "nginx"]).returncode
+        failed_rc = subprocess.run(["systemctl", "is-failed", "--quiet", "nginx"]).returncode
+        if active_rc == 0:
+            nginx_state = 'ok'
+        elif failed_rc == 0:
+            nginx_state = 'error'
+        else:
+            nginx_state = 'offline'
+    except Exception:
+        nginx_state = 'error'
+    base['nginx_state'] = nginx_state
+
     # SLS stats endpoint
     try:
         sr = requests.get("http://192.168.25.5:8181/stats", timeout=1.5)
@@ -741,12 +879,26 @@ def sg_status():
     tinfo = _current_token_info()
     base['token_valid'] = tinfo['valid']
     base['token_expires_in'] = tinfo['expires_in']
+
+    # stunnel-kick service state
+    try:
+        active_rc = subprocess.run(["systemctl", "is-active", "--quiet", "stunnel-kick" ]).returncode
+        failed_rc = subprocess.run(["systemctl", "is-failed", "--quiet", "stunnel-kick" ]).returncode
+        if active_rc == 0:
+            base['stunnel_state'] = 'ok'
+        elif failed_rc == 0:
+            base['stunnel_state'] = 'error'
+        else:
+            base['stunnel_state'] = 'offline'
+    except Exception:
+        base['stunnel_state'] = 'error'
+
     return jsonify(base)
 
 
 
 if __name__ == '__main__':
     try:
-        app.run(host='0.0.0.0', port=5000)
+        app.run(host='0.0.0.0', port=5000, debug=False)  # Disable debug mode
     finally:
         _stop_token_maint.set()

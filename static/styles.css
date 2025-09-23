@@ -13,6 +13,32 @@ body {
     flex-direction: column;
 }
 
+@keyframes speaker-animation {
+    0%, 100% {
+        transform: scale(1);
+        color: #ffffff;
+    }
+    50% {
+        transform: scale(1.25);
+        color: #ffcc00;
+    }
+}
+#audio-permission-banner {
+    background: linear-gradient(180deg, #4b0082, #81029b);
+    color: white;
+    padding: 7px;
+    text-align: center;
+    cursor: pointer;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+#audio-permission-banner .speaker-icon {
+    animation: speaker-animation 1s infinite;
+}
+
 /* Chat fanen fullskjerm uten scroll */
 #chat.tab-content.active {
     position: absolute;
@@ -182,19 +208,24 @@ button:hover {
     font-size: 30px;
     margin: 20px;
 }
+.status .hc-dot{ width:16px; height:16px; box-shadow:0 0 0 1px #000, 0 0 5px -1px #000 inset; vertical-align:baseline; }
 .on {
-    color: limegreen;
+    color: #25c05a;
 }
 .off {
-    color: red;
+    color: #e74c3c;
 }
 footer {
     width: 100%;
-    height: 40px;
+    height: 20px;
     text-align: center;
-    font-size: 16px;
+    font-size: 12px;
     color: #ccc;
     padding: 0 0;
+}
+.text-danger,
+.heart-icon {
+color: #ff3b3b;
 }
 @media (min-width: 600px) {
     button {
@@ -210,7 +241,7 @@ footer {
         font-size: 28px;
     }
     footer {
-        font-size: 18px;
+        font-size: 14px;
     }
 }
 
@@ -557,6 +588,52 @@ letter-spacing:.5px;
     box-shadow:0 4px 18px -4px rgba(0,0,0,.55),0 0 0 1px #1b1b1b;
     text-align:left; font-size:15px;
 }
+/* Logs Panel refined */
+.logs-panel{position:relative;max-width:700px;margin:8px auto 20px;padding:12px 14px 14px;background:#111;border:1px solid #272727;border-radius:18px;box-shadow:0 6px 24px -8px rgba(0,0,0,.6),0 0 0 1px #1a1a1a;}
+.logs-panel, .logs-panel * { text-align:left; }
+.logs-panel.hidden{display:none;}
+/* Header: service dropdown + actions */
+.logs-header{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0 0 10px;justify-self:center;}
+.logs-service-wrap{display:contents;align-items:center;gap:6px;background:#141414;padding:5px 10px;border:1px solid #262626;border-radius:10px;box-shadow:0 2px 6px -3px rgba(0,0,0,.55),0 0 0 1px #1c1c1c;}
+.logs-service-label{font-size:11px;letter-spacing:.6px;text-transform:uppercase;opacity:.65;font-weight:600;}
+.logs-service-select{display:inline-block;background:#1b1b1b;border:1px solid #303030;color:#e6e6e6;font-size:13px;padding:6px 12px;border-radius:8px;appearance:none;min-width:160px;font-weight:500;letter-spacing:.4px;box-shadow:0 0 0 1px #161616 inset;}
+.logs-service-select:focus{outline:2px solid #571669;outline-offset:2px;}
+@media (max-width:640px){
+    .logs-header{flex-direction:column;align-items:stretch;gap:8px;}
+    .logs-service-wrap, .logs-actions{width:100%;justify-content:space-between;}
+    .logs-actions{order:2;}
+}
+#log-lines-select{height:24px;padding:2px 5px;font-size:11.5px;background:#1b1b1b;color:#e2e2e2;border:1px solid #303030;border-radius:6px;box-shadow:0 0 0 1px #161616 inset;}
+.log-follow-label{font-size:11px;opacity:.85;display:flex;align-items:center;gap:4px;padding:3px 6px;background:#1b1b1b;border:1px solid #2e2e2e;border-radius:7px;cursor:pointer;user-select:none;line-height:1;}
+.log-follow-label:hover{background:#242424;opacity:.95;}
+.log-follow-label input{margin:0;}
+.logs-actions{display:contents;align-items:center;gap:4px;font-size:11.2px;flex-wrap:nowrap;background:#141414;padding:3px 6px;border:1px solid #262626;border-radius:10px;box-shadow:0 2px 6px -3px rgba(0,0,0,.55),0 0 0 1px #1c1c1c;}
+.logs-actions .lbl{font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;opacity:.65;display:inline-block;margin-right:2px;}
+.logs-actions select{margin-right:4px;}
+.logs-close-btn{width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border:none;background:#1e1e1e;color:#bbb;font-size:15px;border-radius:7px;cursor:pointer;transition:.18s background,.18s color,.18s transform;line-height:1;font-weight:600;padding:0;}
+.logs-close-btn:hover{background:#272727;color:#fff;}
+.logs-close-btn:active{transform:scale(.92);} 
+#logs-output{background:#0c0c0c;border:1px solid #222;border-radius:12px;min-height:240px;max-height:460px;overflow:auto;padding:6px 10px 8px;font-family:ui-monospace,Consolas,Menlo,monospace;font-size:12.4px;line-height:1.26;white-space:normal;tab-size:4;box-shadow:inset 0 0 0 1px #1a1a1a, inset 0 3px 6px -4px rgba(0,0,0,.6);} 
+/* Each line = flex: timestamp column + message */
+#logs-output .log-line{display:flex;align-items:flex-start;gap:0px;padding:0px 0px 0px 0px;position:relative;}
+#logs-output .log-line:nth-child(2n){background:rgba(255,255,255,0.015);} 
+#logs-output .log-line .log-ts{flex:0 0 auto;width:18ch;max-width:18ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.82;color:#cfcfcf;font-weight:500;font-variant-numeric:tabular-nums;}
+#logs-output .log-line .log-msg{flex:1 1 auto;min-width:0;word-break:break-word;}
+#logs-output .log-line.lvl-error .log-ts{color:#ff8686;}
+#logs-output .log-line.lvl-warn .log-ts{color:#ffc266;}
+#logs-output .log-line.lvl-info .log-ts{color:#a6dbff;}
+#logs-output .log-line.lvl-debug .log-ts{color:#999;}
+#logs-output .log-line.lvl-error{color:#ff6b6b;font-weight:600;}
+#logs-output .log-line.lvl-warn{color:#ffb347;}
+#logs-output .log-line.lvl-info{color:#9ad1ff;}
+#logs-output .log-line.lvl-debug{color:#888;}
+#logs-output .log-line .log-tag{background:#241b2a;color:#d9c4e3;padding:0 5px 0 5px;border-radius:5px;margin-right:6px;font-weight:500;display:inline-block;}
+#logs-output .log-line.lvl-error .log-tag{background:#3a1418;color:#ffc7c7;}
+#logs-output .log-line.lvl-warn .log-tag{background:#3a2a14;color:#ffd9a3;}
+#logs-output .log-line.lvl-info .log-tag{background:#132b3a;color:#b3e4ff;}
+#logs-output .log-line.lvl-debug .log-tag{background:#1e1e1e;color:#aaa;}
+#logs-output::-webkit-scrollbar{width:12px;}#logs-output::-webkit-scrollbar-track{background:#121212;border-left:3px solid #111;border-right:3px solid #111;}#logs-output::-webkit-scrollbar-thumb{background:#333;border-radius:8px;border:2px solid #121212;}#logs-output::-webkit-scrollbar-thumb:hover{background:#444;}
+@media (max-width:640px){.logs-panel{max-width:100%;padding:10px;}#logs-output{min-height:180px;}}
 .restream-panel{
     max-width:760px; margin:16px auto 40px; padding:22px 26px 30px;
     background:#121212; border:1px solid #2a2a2a; border-radius:20px;

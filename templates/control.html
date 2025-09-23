@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
@@ -15,11 +15,13 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div id="audio-permission-banner" style="background-color: #81029b; color: white; padding: 15px; text-align: center; cursor: pointer; font-size: 18px;">
-        🔊 Click here to enable sound for alerts
+    <div id="audio-permission-banner">
+        <span class="speaker-icon">🔊</span>
+        Click here to enable sound for alerts
     </div>
     <!-- Tab knappene -->
     <div class="tab-container">
@@ -36,11 +38,43 @@
             <button id="turnOnBtn" onclick="turnOnMiniPC()">Turn On</button>
             <button id="turnOffBtn" onclick="openPowerConfirm('shutdown')">Shutdown</button>
             <button id="restartBtn" onclick="openPowerConfirm('restart')">Restart</button>
-        </div><br><br>
+            <button id="repairBtn" onclick="openRepairConfirm()">Repair Backend</button>
+            <button id="logsBtn" onclick="toggleLogsPanel()">Logs</button>
+        </div>
+        <div id="logs-panel" class="logs-panel hidden" aria-label="Service logs">
+            <div class="logs-header">
+                <div class="logs-service-wrap">
+                    <label for="logs-service-select" class="logs-service-label">Service</label>
+                    <select id="logs-service-select" class="logs-service-select" aria-label="Select log service">
+                        <option value="streamguard">StreamGuard</option>
+                        <option value="chatbot">Chatbot</option>
+                        <option value="nginx">Nginx</option>
+                        <option value="stunnel">Stunnel</option>
+                        <option value="streamcontrol">StreamControl</option>
+                    </select>
+                </div>
+                <div class="logs-actions">
+                    <label class="lines-select-wrap" title="Lines to load">
+                        <span class="lbl">Lines</span>
+                        <select id="log-lines-select" aria-label="Number of lines">
+                            <option value="25" selected>25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
+                    </label>
+                    <label class="log-follow-label"><input type="checkbox" id="log-follow" checked> follow</label>
+                    <button type="button" class="logs-close-btn" onclick="closeLogsPanel()" aria-label="Close logs">✕</button>
+                </div>
+            </div>
+            <div id="logs-output" class="logs-output" role="log" aria-live="off"></div>
+        </div>
+        <br>
                 <div id="health-panel" class="health-panel">
                     <h3 class="health-title">Health checks:</h3>
                     <ul class="health-list">
                         <li><span class="health-name">Chatbot</span><span class="hc-dot" id="hc-chatbot" title="chatbot.service"></span><span class="hc-label" id="hc-chatbot-label">—</span></li>
+                        <li><span class="health-name">Nginx</span><span class="hc-dot" id="hc-nginx" title="nginx.service"></span><span class="hc-label" id="hc-nginx-label">—</span></li>
+                        <li><span class="health-name">Stunnel</span><span class="hc-dot" id="hc-stunnel" title="stunnel-kick.service"></span><span class="hc-label" id="hc-stunnel-label">—</span></li>
                         <li><span class="health-name">StreamGuard</span><span class="hc-dot" id="hc-streamguard" title="stream-guard.service"></span><span class="hc-label" id="hc-streamguard-label">—</span></li>
                         <li><span class="health-name">ChatGuard</span><span class="hc-dot" id="hc-chatguard" title="chat message guard"></span><span class="hc-label" id="hc-chatguard-label">—</span></li>
                         <li><span class="health-name">SLS</span><span class="hc-dot" id="hc-sls" title="SLS stats endpoint"></span><span class="hc-label" id="hc-sls-label">—</span></li>
@@ -57,8 +91,8 @@
         <div class="button-container">
             <p id="streamStatus" class="status">Status: Unknown</p>
             <p id="obsScene" class="status">Scene: Unknown</p>
-            <button id="startStreamBtn" onclick="sendRequest('/obs/start_stream')">Start Stream 🟢</button>
-            <button id="stopStreamBtn" onclick="openStopStreamModal()" style="display:none;">Stop Stream 🔴</button>
+            <button id="startStreamBtn" onclick="sendRequest('/obs/start_stream')">Start Stream</button>
+            <button id="stopStreamBtn" onclick="openStopStreamModal()" style="display:none;">Stop Stream</button>
             <button onclick="switchToLive()">Switch to 'LIVE' Scene</button>
             <button onclick="switchToBRB()">Switch to 'BRB' Scene</button>
             <button id="showStreamTitleInput" onclick="showStreamTitleForm()">Update Stream Title</button>
@@ -158,6 +192,18 @@
             </div>
         </div>
 
+        <!-- Repair Backend Modal -->
+        <div id="repair-confirm-modal" class="sg-modal hidden">
+            <div class="sg-modal__dialog" style="border-color:#81029b;">
+                <h2 style="margin-top:0;">Repair Backend?</h2>
+                <p style="margin:6px 0 18px;font-size:18px;">This will restart Nginx and StreamGuard services. Are you sure?</p>
+                <div class="sg-modal__actions">
+                    <button id="repair-modal-confirm" class="danger">Confirm Repair</button>
+                    <button id="repair-modal-cancel" class="secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Delete Endpoint Modal -->
         <div id="delete-endpoint-modal" class="sg-modal hidden" aria-hidden="true" role="dialog" aria-labelledby="del-endpoint-title">
             <div class="sg-modal__dialog" style="border-color:#81029b;">
@@ -171,7 +217,8 @@
         </div>
 
     <footer id="main-footer">
-        Kimsec © <span id="year"></span> <span style="color: #d14;">♥</span>
+        © <span id="year"></span> All Rights Reserved. Made with
+        <i class="fa-solid fa-heart heart-icon" aria-hidden="true"></i> by Kim AH
     </footer>
     <!-- Toast container -->
     <div id="toast-host" class="toast-host" aria-live="polite" aria-atomic="true"></div>
