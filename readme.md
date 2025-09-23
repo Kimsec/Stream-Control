@@ -36,6 +36,7 @@ A unified streaming control panel that centralizes Twitch management, OBS scene 
 - [Bitrate & Raid Automation](#bitrate--raid-automation)
 - [Twitch Integration & Tokens](#twitch-integration--tokens)
 - [Alert Sound](#alert-sound)
+- [Logs Viewer](#logs-viewer)
 - [Health Indicators](#health-indicators)
 - [Security Recommendations](#security-recommendations)
 - [Ip Banning](#ip-banning)
@@ -48,6 +49,7 @@ A unified streaming control panel that centralizes Twitch management, OBS scene 
 ## Overview
 
 Stream-Control consists of:
+
 1. A Flask-based control panel (web dashboard).
 2. A companion background process (Stream Guard) that:
    - Monitors bitrate via a stats endpoint (e.g. SRS / SLS / nginx module JSON)
@@ -103,7 +105,7 @@ python app.py
 python stream_guard.py
 ```
 
-Open http://localhost:5000 (login with LOGIN_PASSWORD).
+Open <http://localhost:5000> (login with LOGIN_PASSWORD).
 
 ---
 
@@ -156,12 +158,14 @@ Tokens are auto-refreshed and persisted.
 ## Running the Services
 
 Development:
+
 ```bash
 python app.py
 python stream_guard.py
 ```
 
 Production:
+
 - `gunicorn` for app.py
 - systemd units for both processes
 - Auto-restart on failure
@@ -187,6 +191,7 @@ Toasts provide immediate feedback.
 ## Restream Management
 
 Workflow:
+
 1. Open Restream panel.
 2. Edit/add endpoints (checkbox = enabled).
 3. Save → JSON updated → nginx config rendered → nginx reloaded automatically.
@@ -196,6 +201,7 @@ Workflow:
 
 
 ### Chat Commands
+
 Chat commands are processed via the Twitch EventSub `channel.chat.message` subscription.
 A valid user access token (loaded from `twitch_tokens.json`) is required and must include the chat scopes: `user:read:chat and user:write:chat`.
 
@@ -211,6 +217,7 @@ Command | Action
 `!stop`  | Stop the current stream
 
 Environment variables affecting commands:
+
 - `TWITCH_ADMINS=admin1,admin2`
 - `STARTING_SCENE_NAME=Starting soon` (optional)
 - `BRB_SCENE_NAME=BRB` (optional; defaults handled in code)
@@ -241,11 +248,13 @@ Scene transitions also dispatch overlay alerts.
 - Revoked tokens trigger subscription re-attempt after refresh.
 
 Both `app.py` and `stream_guard.py` use the same token file (`twitch_tokens.json`, path set by `TWITCH_TOKENS_PATH`).
+
 - app.py is the ONLY process that refreshes / rotates the access + refresh tokens (writes the file).
 - stream_guard.py is read‑only: it loads the current access token to:
   - Subscribe to EventSub topics (raids, chat messages)
   - Send chat messages (Helix Chat API) for feedback / raid completion
 Required scopes for full functionality (recommend granting when generating initial tokens):
+
 - user:read:chat
 - user:write:chat
 - channel:manage:broadcast (title/category updates)
@@ -261,19 +270,66 @@ If a token is revoked or expires, app.py refresh logic updates the file; guard d
 
 ---
 
+## Logs Viewer
+
+A built-in, mobile-friendly log viewer is available from the Mini-PC tab via the "Logs" button. It helps you inspect systemd service logs without SSH.
+
+Features:
+
+- Service dropdown: switch between multiple services without mixing lines. Current services:
+  - stream-guard.service (StreamGuard)
+  - chatbot.service (optional)
+  - nginx.service
+  - stunnel-kick.service
+  - stream-control.service (the web app itself)
+- Line count selector: load last 25 (default), 50, or 100 lines.
+- Follow toggle: continue streaming new lines in real time via WebSocket.
+- Timestamp format: rendered in journalctl short style, e.g. "Sep 08 04:56:38:" for readability.
+- Color cues: basic highlighting for ERROR/WARN/INFO/DEBUG.
+- Auto-scroll, large buffer trimming, and service-isolated sessions avoid stale entries when switching.
+
+API (optional):
+
+- HTTP: GET `/api/logs?service=<key>&lines=<n>` returns the initial batch of lines.
+- WS:   connect to `/ws/logs?service=<key>` to follow (`-n 0` on the backend prevents duplicate backlog).
+- Accepted service keys match the UI dropdown (e.g. `streamguard`, `chatbot`, `nginx`, `stunnel`, `streamcontrol`).
+
+Notes:
+
+- Changing the selected service closes the previous follow stream and ignores stale messages by session.
+- The default 25 lines load immediately on open; follow can be toggled on/off without reloading the history.
+
+---
+
 ## Health Indicators
 
-Polled via `/api/sg_status`:
+The dashboard polls a lightweight health endpoint and renders compact status dots (ok/offline/error) with labels.
 
-Field | Meaning
-------|--------
-obs_connected | OBS reachable
-raid_ws | EventSub WebSocket alive
-raid_subscribed | channel.raid active
-token_valid | Twitch token OK
-token_expires_in | Seconds remaining
+Data source: GET `/api/sg_status`
 
-Color coding in UI: ok / offline / error.
+Provided states (UI shows a dot + concise label):
+
+- Chatbot: `chatbot_state` (systemd unit state)
+- Nginx: `nginx_state` (systemd unit state)
+- Stunnel: `stunnel_state` (systemd unit state)
+- StreamGuard: `streamguard_state` (systemd unit state)
+- ChatGuard: derived from `chat_ws` and `chat_subscribed` (ok when both are true; shows `ws` when WS is up but not yet subscribed)
+- SLS: `sls_state` (stats endpoint availability)
+- OBS: `obs_connected` (ok when true)
+- Twitch Events WS: `raid_ws` (EventSub WebSocket alive)
+- Raid AutoStop: `raid_subscribed` (EventSub `channel.raid` subscription active)
+- Twitch Token: `token_valid` plus `token_expires_in` (minutes shown in the label when valid)
+
+Color coding in UI:
+
+- ok: green dot
+- offline: gray dot
+- error: red dot (e.g., explicit error conditions)
+
+Operational notes:
+
+- StreamGuard’s EventSub client auto-retries subscription with backoff after network/token changes.
+- When a token transitions from invalid to valid, a forced re-subscribe attempt is scheduled promptly.
 
 ---
 
@@ -296,9 +352,9 @@ Stream-Control now includes support for IP banning to protect against unwanted c
 - A log entry is created to indicate that a blocked IP attempted to connect.
 - Banned IPs can be managed via the `bans.json` file or directly through the admin control panel at `/bans`.
 
-#### How to Enable IP Banning
+### How to Enable IP Banning
 
-1. IP banning is enabled by default. 
+1. IP banning is enabled by default.
 
 
 
