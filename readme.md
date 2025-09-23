@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-A unified streaming control panel that centralizes Twitch management, OBS scene automation, bitrate failover, raid auto-stop, admin chat commands, BELABOX + restream endpoint oversight, alert sounds, chat viewing, and remote stream PC control—built to keep a flaky connection stable and reactive from one dashboard.
+A unified streaming control panel that centralizes Twitch management, OBS scene automation, bitrate failover, raid auto-stop, admin chat commands, BELABOX + restream endpoints settings, alert sounds, chat viewing, and remote stream PC control—built to keep a flaky connection stable and reactive from one dashboard.
 </p>
 
 ---
@@ -196,7 +196,7 @@ What it does (by default):
 
 - Restarts nginx
 - Restarts StreamGuard (the guard process handling bitrate and EventSub)
-- restarts Stunnel (Secure Tunnel to RTMPS)
+- Restarts Stunnel (RTMPS)
 
 Notes:
 
