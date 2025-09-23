@@ -188,6 +188,21 @@ Toasts provide immediate feedback.
 
 ---
 
+### Repair Backend
+
+If the backend feels stuck (e.g., nginx not serving correctly or StreamGuard appears unresponsive), the Mini-PC tab includes a "Repair Backend" button. This triggers a controlled restart of critical services to recover quickly.
+
+What it does (by default):
+
+- Restarts nginx
+- Restarts StreamGuard (the guard process handling bitrate and EventSub)
+- restarts Stunnel (Secure Tunnel to RTMPS)
+
+Notes:
+
+- The operation is idempotent and safe to run when services are already healthy.
+- Use this when health indicators show red for nginx/StreamGuard/Stunnel or the UI becomes unresponsive due to those services.
+
 ## Restream Management
 
 Workflow:
