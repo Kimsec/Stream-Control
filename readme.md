@@ -264,6 +264,14 @@ Here you can:
 - Repair services if something isn't working
 - View system logs
 
+#### 📦 Belabox Tab
+Here you can:
+- Access the Belabox GUI directly from the control panel
+- Control all settings and features available in the Belabox interface
+- Manage your Belabox device without leaving the Stream Control dashboard
+
+The Belabox tab embeds the Belabox interface, providing seamless integration for managing your Belabox device.
+
 #### 🤖 Bot Button
 Control chatbot service (if you have one)
 
