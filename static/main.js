@@ -259,7 +259,9 @@ function loadTwitchChat() {
     const chatContainer = document.getElementById('chat-container'); // moved out of if
     fetch('/twitch/channel_info')
         .then(res => res.json())
-        .then(data => {
+    .then(data => {
+      // Cache broadcaster/channel for instant reuse by Twitch player
+      try { window.__broadcasterName = (data && (data.broadcaster_name || data.channel || data.login)) || null; } catch(_) {}
             if (data.broadcaster_name) {
                 const iframe = document.createElement('iframe');
                 iframe.id = 'twitch-chat-iframe';
@@ -297,6 +299,24 @@ function checkStreamStatus() {
         // overgang OFF->ON = start bot, ON->OFF = stopp bot
         fetch(isStreamingNow ? '/bot/start' : '/bot/stop', { method: 'POST' }).catch(()=>{});
         lastStreaming = isStreamingNow;
+      }
+
+      // --- Viewer polling start/stop based on stream state ---
+      // No polling when offline. Start on ON transition or first detection of ON, stop on OFF.
+      if (isStreamingNow) {
+        if (!window.__viewerPollTimer) {
+          try { clearInterval(window.__viewerPollTimer); } catch(_) {}
+          _pollViewersOnce();
+          const iv = (typeof window.__VIEWER_POLL_MS === 'number' && window.__VIEWER_POLL_MS > 0) ? window.__VIEWER_POLL_MS : 10000;
+          window.__viewerPollTimer = setInterval(_pollViewersOnce, iv);
+        }
+      } else {
+        if (window.__viewerPollTimer) {
+          try { clearInterval(window.__viewerPollTimer); } catch(_) {}
+          window.__viewerPollTimer = null;
+        }
+        // reflect offline immediately
+        _updateViewerUI(false, 0);
       }
 
       // --- UI oppdatering som før ---
@@ -367,6 +387,30 @@ function requestAudioPermission() {
 if (audioBanner) {
   audioBanner.addEventListener('click', requestAudioPermission, { once: true });
 }
+
+// --- Viewer count (controlled by stream state) ---
+// Polling is started/stopped inside checkStreamStatus. Configure interval here.
+window.__VIEWER_POLL_MS = 10000; // 10s
+
+function _updateViewerUI(isLive, count){
+  const el = document.getElementById('obsViewers');
+  if(!el) return;
+  el.textContent = 'Viewers: ' + (isLive ? (count ?? 0) : '—');
+}
+
+function _pollViewersOnce(){
+  fetch('/twitch/stream_info')
+    .then(r => r.ok ? r.json() : Promise.reject(r))
+    .then(js => {
+      if(js && typeof js.viewer_count !== 'undefined'){
+        _updateViewerUI(!!js.is_live, js.viewer_count|0);
+      }else{
+        _updateViewerUI(false, 0);
+      }
+    })
+    .catch(() => _updateViewerUI(false, 0));
+}
+
 
 function searchCategory() {
   // Debounced søk: vent til bruker har stoppet å skrive
@@ -1071,6 +1115,74 @@ function _setDot(id, ok){
   el.classList.remove('sg-ok','sg-bad');
   if(ok === true) el.classList.add('sg-ok');
   else if(ok === false) el.classList.add('sg-bad');
+}
+
+const twitchContainer = document.getElementById('twitch-player');
+const chatTab = document.querySelector('.tab[data-tab="chat"]');
+let twitchPlayerVisible = false;
+let _twitchIframeEl = null;
+const _twitchEmbedTmpl = twitchContainer?.dataset.embedTemplate || 'https://player.twitch.tv/?channel={channel}&parent={parent}';
+const _twitchEmbedAllow = twitchContainer?.dataset.embedAllow || 'autoplay; fullscreen';
+const _twitchEmbedTitle = twitchContainer?.dataset.embedTitle || 'Twitch player';
+
+function _getCachedChannel(){
+  const fresh = _channelInfoCache.data && (Date.now() - _channelInfoCache.ts) < CHANNEL_INFO_TTL_MS;
+  if(fresh){
+    const d = _channelInfoCache.data;
+    return d && (d.broadcaster_name || d.channel || d.login) || null;
+  }
+  return null;
+}
+
+function _createTwitchIframeSync(){
+  const ch = (window.__broadcasterName) || _getCachedChannel();
+  if(!ch) return null; // not ready yet
+  const parent = window.location.hostname;
+  const src = _twitchEmbedTmpl
+    .replace('{channel}', encodeURIComponent(ch))
+    .replace('{parent}', encodeURIComponent(parent));
+  const iframe = document.createElement('iframe');
+  iframe.src = src;
+  iframe.setAttribute('allowfullscreen','');
+  if(_twitchEmbedAllow) iframe.setAttribute('allow', _twitchEmbedAllow);
+  iframe.setAttribute('frameborder','0');
+  iframe.setAttribute('title', _twitchEmbedTitle);
+  iframe.loading = 'lazy';
+  return iframe;
+}
+
+function setTwitchPlayerVisible(show){
+  if(!twitchContainer) return;
+  const shouldShow = !!show;
+  if(shouldShow){
+    if(!_twitchIframeEl){
+      const ifr = _createTwitchIframeSync();
+      if(ifr){
+        _twitchIframeEl = ifr;
+        twitchContainer.appendChild(_twitchIframeEl);
+      }
+    }
+    twitchContainer.classList.remove('hidden');
+  } else {
+    twitchContainer.classList.add('hidden');
+    if(_twitchIframeEl){
+      try{ _twitchIframeEl.src = 'about:blank'; }catch(_){ }
+      _twitchIframeEl.remove();
+      _twitchIframeEl = null;
+    }
+  }
+  twitchPlayerVisible = shouldShow;
+}
+
+setTwitchPlayerVisible(false);
+
+if(chatTab){
+  chatTab.addEventListener('dblclick', (e) => {
+    // Hindre tekstmarkering/standard handling ved dobbeltklikk
+    try{ e.preventDefault(); e.stopPropagation(); }catch(_){ }
+    try{ const sel = window.getSelection && window.getSelection(); if(sel && sel.removeAllRanges) sel.removeAllRanges(); }catch(_){ }
+    setTwitchPlayerVisible(!twitchPlayerVisible);
+  });
 }
 
 Object.assign(window, {

@@ -19,6 +19,11 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
+    <div class="twitch-container hidden" id="twitch-player"
+        data-embed-template="https://player.twitch.tv/?channel={channel}&parent={parent}&muted=true&autoplay=true"
+        data-embed-allow="autoplay; fullscreen"
+        data-embed-title="Twitch player">
+    </div>
     <div id="audio-permission-banner">
         <span class="speaker-icon">🔊</span>
         Click here to enable sound for alerts
@@ -91,6 +96,7 @@
         <div class="button-container">
             <p id="streamStatus" class="status">Status: Unknown</p>
             <p id="obsScene" class="status">Scene: Unknown</p>
+            <p id="obsViewers" class="status" style="margin-top:2px;">Viewers: —</p>
             <button id="startStreamBtn" onclick="sendRequest('/obs/start_stream')">Start Stream</button>
             <button id="stopStreamBtn" onclick="openStopStreamModal()" style="display:none;">Stop Stream</button>
             <button onclick="switchToLive()">Switch to 'LIVE' Scene</button>

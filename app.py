@@ -418,6 +418,46 @@ def get_channel_info():
         return jsonify({"error": error_text}), 500
 
 
+@app.route('/twitch/stream_info')
+@login_required
+def twitch_stream_info():
+    try:
+        token = ensure_user_token()
+        if not token:
+            return jsonify({"error": "Missing Twitch user token"}), 400
+        url = f"https://api.twitch.tv/helix/streams?user_id={TWITCH_BROADCASTER_ID}"
+        headers = {
+            "Client-ID": TWITCH_CLIENT_ID,
+            "Authorization": f"Bearer {token}"
+        }
+        resp = requests.get(url, headers=headers, timeout=8)
+        if resp.status_code == 401:
+            # token may have just expired; try one on-demand refresh
+            token2 = ensure_user_token()
+            if token2 and token2 != token:
+                headers["Authorization"] = f"Bearer {token2}"
+                resp = requests.get(url, headers=headers, timeout=8)
+        resp.raise_for_status()
+
+        js = resp.json()
+        data = (js.get('data') or [])
+        if not data:
+            return jsonify({"is_live": False, "viewer_count": 0})
+        s = data[0]
+        out = {
+            "is_live": True,
+            "viewer_count": int(s.get("viewer_count", 0) or 0),
+            "title": s.get("title", ""),
+            "game_name": s.get("game_name", ""),
+            "started_at": s.get("started_at", "")
+        }
+        return jsonify(out)
+    except requests.exceptions.RequestException as e:
+        resp_obj = getattr(e, 'response', None)
+        err = f"Twitch API error: {resp_obj.text}" if resp_obj is not None else str(e)
+        return jsonify({"error": err}), 502
+
+
 @app.route('/twitch/raid', methods=['POST'])
 @login_required
 def raid_channel():

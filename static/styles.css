@@ -39,6 +39,26 @@ body {
     animation: speaker-animation 1s infinite;
 }
 
+.hidden {
+    display: none !important;
+}
+
+.twitch-container {
+    width: 100vw;
+    margin-left: calc(50% - 50vw); /* ensure edge-to-edge even inside centered layouts */
+    background: #000;
+    position: relative;
+    z-index: 5; /* keep video above overlapping chat iframe */
+}
+
+.twitch-container iframe {
+    display: block;
+    width: 100%;
+    height: calc(100vw * 9 / 16); /* keep 16:9 ratio */
+    max-height: 60vh;
+    border: none;
+}
+
 /* Chat fanen fullskjerm uten scroll */
 #chat.tab-content.active {
     position: absolute;
@@ -114,6 +134,12 @@ button {
     flex: 1;
     text-align: center;
     white-space: nowrap;
+    /* Forhindrer at tekst markeres ved dobbeltklikk på fanelabels */
+    user-select: none;
+    -webkit-user-select: none;
+    -ms-user-select: none;
+    -moz-user-select: none;
+    -webkit-tap-highlight-color: transparent;
 @media (max-width: 768px) {
     #restreamOptions {
         padding: 10px;

@@ -9,6 +9,8 @@ events {
 }
 
 http {
+    resolver 1.1.1.1 9.9.9.9 ipv6=off valid=300s;
+    resolver_timeout 5s;
     sendfile on;
     tcp_nopush on;
     include /etc/nginx/mime.types;

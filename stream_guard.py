@@ -23,7 +23,7 @@ BITRATE_HIGH_KBPS: int = int(os.getenv("BITRATE_HIGH_KBPS"))
 
 POLL_INTERVAL_SEC: float = float(os.getenv("POLL_INTERVAL_SEC"))
 LOW_CONSEC_SAMPLES: int = int(os.getenv("LOW_CONSEC_SAMPLES"))
-LIVE_SCENE_LOW_GRACE_SEC: float = float(os.getenv("LIVE_SCENE_LOW_GRACE_SEC", "3"))  # Ignorer lave målinger rett etter bytte til LIVE
+LIVE_SCENE_LOW_GRACE_SEC: float = float(os.getenv("LIVE_SCENE_LOW_GRACE_SEC", "3"))
 
 REQUEST_TIMEOUT: float = float(os.getenv("REQUEST_TIMEOUT"))
 
@@ -32,30 +32,51 @@ WAIT_FOR_STREAM_START: bool = os.getenv("WAIT_FOR_STREAM_START", "true").lower()
 IDLE_WHEN_STREAM_ENDS: bool = os.getenv("IDLE_WHEN_STREAM_ENDS", "true").lower() in ("1", "true", "yes", "y")
 EXIT_WHEN_STREAM_ENDS: bool = os.getenv("EXIT_WHEN_STREAM_ENDS", "false").lower() in ("1", "true", "yes", "y")
 
-ALERTS_BASE_URL: str = os.getenv("ALERTS_BASE_URL")
+ALERTS_BASE_URL: Optional[str] = os.getenv("ALERTS_BASE_URL")
 
-# ==== Twitch EventSub (WebSocket) -> auto stop OBS on outgoing raid ====
+# ==== Twitch EventSub (WebSocket) ====
 TWITCH_CLIENT_ID      = os.getenv("TWITCH_CLIENT_ID")
-TWITCH_OAUTH_TOKEN    = os.getenv("TWITCH_OAUTH_TOKEN")      # USER token (må komme fra auth-server)
+TWITCH_OAUTH_TOKEN    = os.getenv("TWITCH_OAUTH_TOKEN")
 TWITCH_BROADCASTER_ID = os.getenv("TWITCH_BROADCASTER_ID")
+
+# Raid handling
 RAID_AUTO_STOP_ENABLED = os.getenv("RAID_AUTO_STOP_ENABLED", "true").lower() in ("1","true","yes","on")
 RAID_AUTO_STOP_DELAY   = int(os.getenv("RAID_AUTO_STOP_DELAY", "0"))
-TWITCH_CLIENT_SECRET  = os.getenv("TWITCH_CLIENT_SECRET")  # (ikke brukt for channel.raid nå)
 TWITCH_TOKENS_PATH     = os.getenv("TWITCH_TOKENS_PATH", os.path.join(os.path.dirname(__file__), "twitch_tokens.json"))
 RAID_SEND_CHAT_MESSAGE = os.getenv("RAID_SEND_CHAT_MESSAGE", "true").lower() in ("1","true","yes","on")
-RAID_CHAT_MESSAGE      = os.getenv("RAID_CHAT_MESSAGE", "Raided successfully & ended stream")
+RAID_CHAT_MESSAGE      = os.getenv("RAID_CHAT_MESSAGE", "Raided {channel} successfully & ended stream!")
 
 EVENTSUB_WS   = "wss://eventsub.wss.twitch.tv/ws"
 SUBSCRIBE_URL = "https://api.twitch.tv/helix/eventsub/subscriptions"
-RESUB_MIN_INTERVAL_SEC = 30   # don't spam subscribe attempts
+RESUB_MIN_INTERVAL_SEC = 30
 
-# === ChatGuard additions ===
-TWITCH_ADMINS = os.getenv("TWITCH_ADMINS")
+# Chat guard
+TWITCH_ADMINS = os.getenv("TWITCH_ADMINS") or ""
 CHAT_ADMINS = {a.strip().lower() for a in TWITCH_ADMINS.split(",") if a.strip()}
+STARTING_SCENE_NAME: str = os.getenv("STARTING_SCENE_NAME") or "Starting soon"
+BRB_SCENE_NAME: str = os.getenv("BRB_SCENE_NAME") or "BRB"
+OFFLINE_SCENE_NAME: str = os.getenv("OFFLINE_SCENE_NAME") or "OFFLINE"
+CHAT_RESUB_MIN_INTERVAL_SEC = 30
 
-STARTING_SCENE_NAME: str = os.getenv("STARTING_SCENE_NAME")
-BRB_SCENE_NAME: str = os.getenv("BRB_SCENE_NAME")
-OFFLINE_SCENE_NAME: str = os.getenv("OFFLINE_SCENE_NAME")
+# --- Health state ---
+_HEALTH = {
+    "obs_connected": False,
+    "token_valid": False,
+    "raid_ws": False,
+    "raid_subscribed": False,
+    "raid_force_resub": False,
+    "chat_ws": False,
+    "chat_subscribed": False,
+}
+_HEALTH_LOCK = threading.Lock()
+
+def _h_set(k: str, v: Any) -> None:
+    with _HEALTH_LOCK:
+        _HEALTH[k] = v
+
+def _h_snapshot() -> dict[str, Any]:
+    with _HEALTH_LOCK:
+        return dict(_HEALTH)
 
 
 def _current_user_token() -> str:
@@ -182,8 +203,6 @@ async def _eventsub_subscribe_chat(http: aiohttp.ClientSession, session_id: str)
 
 
 # === ChatGuard additions ===
-CHAT_RESUB_MIN_INTERVAL_SEC = 30
-
 async def _chat_guard():
     if not (TWITCH_CLIENT_ID and TWITCH_BROADCASTER_ID):
         print("[ChatGuard] missing TWITCH_* vars; disabled")
@@ -205,6 +224,7 @@ async def _chat_guard():
             async with aiohttp.ClientSession() as http:
                 async with http.ws_connect(ws_url, autoping=True) as ws:
                     session_id = None
+                    keepalive_timeout = 35.0  # default until welcome arrives
                     _h_set("chat_ws", True)
                     _h_set("chat_subscribed", False)
 
@@ -214,37 +234,42 @@ async def _chat_guard():
                             _ = await _eventsub_subscribe_chat(http, session_id)
                             next_resub_attempt = now + CHAT_RESUB_MIN_INTERVAL_SEC
 
-                        msg = await ws.receive()
+                        try:
+                            msg = await asyncio.wait_for(ws.receive(), timeout=keepalive_timeout + 5.0)
+                        except asyncio.TimeoutError:
+                            print("[ChatGuard] keepalive timeout; reconnecting…")
+                            break
+
                         if msg.type == aiohttp.WSMsgType.TEXT:
                             data = json.loads(msg.data)
                             mtype = data.get("metadata", {}).get("message_type")
 
                             if mtype == "session_welcome":
                                 session_id = data["payload"]["session"]["id"]
+                                try:
+                                    keepalive_timeout = float(data["payload"]["session"].get("keepalive_timeout_seconds", keepalive_timeout))
+                                except Exception:
+                                    pass
                                 next_resub_attempt = 0.0
-
+                            elif mtype == "session_keepalive":
+                                pass
                             elif mtype == "session_reconnect":
                                 ws_url = data["payload"]["session"]["reconnect_url"]
                                 print("[ChatGuard] reconnect ->", ws_url)
                                 break
-
                             elif mtype == "notification":
                                 sub_type = data["payload"]["subscription"]["type"]
-
                                 if sub_type == "channel.chat.message":
                                     ev = data["payload"]["event"]
-                                    _h_set("chat_subscribed", True)  # mark healthy on first message
+                                    _h_set("chat_subscribed", True)
                                     login = (ev.get("chatter_user_login") or "").lower()
                                     text = (ev.get("message", {}).get("text") or "").strip()
-
                                     if not text.startswith("!"):
                                         continue
                                     if not _is_admin(login):
                                         continue
-
                                     cmd = text.split()[0].lower()
                                     print(f"[ChatGuard] cmd from {login}: {cmd}")
-
                                     if cmd == "!start":
                                         if _obs_start_and_switch(STARTING_SCENE_NAME):
                                             _send_chat_message("[bot] Stream started & switched to Starting soon!")
@@ -260,12 +285,6 @@ async def _chat_guard():
                                     elif cmd == "!stop":
                                         if _obs_stop_stream():
                                             _send_chat_message("[bot] Stream ended")
-
-                            elif mtype == "revocation":
-                                sub = data.get("payload", {}).get("subscription", {})
-                                if sub.get("type") == "channel.chat.message":
-                                    print("[ChatGuard] subscription revoked -> will re-subscribe when token valid again")
-                                    _h_set("chat_subscribed", False)
 
                         elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
                             break
@@ -300,6 +319,7 @@ async def _raid_watcher():
     # Instead of exiting if token missing, wait until it appears so service recovers after outages.
     ws_url = EVENTSUB_WS
     next_resub_attempt = 0.0
+    last_raid_ts_box = {"ts": 0.0}  # mutable holder for debounce timestamp
     while True:
         if not _current_user_token():
             _h_set("raid_ws", False)
@@ -310,21 +330,38 @@ async def _raid_watcher():
             async with aiohttp.ClientSession() as http:
                 async with http.ws_connect(ws_url, autoping=True) as ws:
                     session_id = None
+                    keepalive_timeout = 35.0
                     _h_set("raid_ws", True)
                     _h_set("raid_subscribed", False)
                     next_resub_attempt = 0.0
                     while True:
                         now = time.time()
-                        if session_id and not _h_snapshot().get("raid_subscribed") and _h_snapshot().get("token_valid") is True and now >= next_resub_attempt:
-                            _ = await _eventsub_subscribe_raid(http, session_id)
+                        snap = _h_snapshot()
+                        need_force = snap.get("raid_force_resub") is True
+                        if session_id and snap.get("token_valid") is True and (not snap.get("raid_subscribed") or need_force) and now >= next_resub_attempt:
+                            ok = await _eventsub_subscribe_raid(http, session_id)
+                            if ok and need_force:
+                                _h_set("raid_force_resub", False)
                             next_resub_attempt = now + RESUB_MIN_INTERVAL_SEC
-                        msg = await ws.receive()
+
+                        try:
+                            msg = await asyncio.wait_for(ws.receive(), timeout=keepalive_timeout + 5.0)
+                        except asyncio.TimeoutError:
+                            print("[RaidGuard] keepalive timeout; reconnecting…")
+                            break
+
                         if msg.type == aiohttp.WSMsgType.TEXT:
                             data = json.loads(msg.data)
                             mtype = data.get("metadata", {}).get("message_type")
                             if mtype == "session_welcome":
                                 session_id = data["payload"]["session"]["id"]
+                                try:
+                                    keepalive_timeout = float(data["payload"]["session"].get("keepalive_timeout_seconds", keepalive_timeout))
+                                except Exception:
+                                    pass
                                 next_resub_attempt = 0.0
+                            elif mtype == "session_keepalive":
+                                pass
                             elif mtype == "session_reconnect":
                                 ws_url = data["payload"]["session"]["reconnect_url"]
                                 print("[RaidGuard] reconnect ->", ws_url)
@@ -332,30 +369,41 @@ async def _raid_watcher():
                             elif mtype == "notification":
                                 sub_type = data["payload"]["subscription"]["type"]
                                 if sub_type == "channel.raid":
-                                    ev = data["payload"]["event"]
+                                    ev = data.get("payload", {}).get("event", {})
+                                    _h_set("raid_subscribed", True)
                                     if ev.get("from_broadcaster_user_id") == TWITCH_BROADCASTER_ID:
-                                        print("[RaidGuard] outgoing raid -> stopping OBS")
-                                        if RAID_AUTO_STOP_DELAY > 0:
-                                            await asyncio.sleep(RAID_AUTO_STOP_DELAY)
-                                        try:
-                                            c = connect_obs()
-                                            c.stop_stream()
+                                        now_ts = time.time()
+                                        last_ts = last_raid_ts_box["ts"]
+                                        if now_ts - last_ts < 30:
+                                            continue
+                                        last_raid_ts_box["ts"] = now_ts
+                                        target_login = ev.get("to_broadcaster_user_login") or ev.get("to_broadcaster_user_name")
+                                        viewers = ev.get("viewers")
+                                        print(f"[RaidGuard] Outgoing raid -> {target_login} viewers={viewers}; scheduling stop (delay={RAID_AUTO_STOP_DELAY}s)")
+                                        async def _stop_after_delay(delay: int):
                                             try:
-                                                c.set_current_program_scene(OFFLINE_SCENE_NAME)
-                                            except Exception as sce:
-                                                print(f"[RaidGuard] failed switching to offline scene '{OFFLINE_SCENE_NAME}':", sce)
-                                            if RAID_SEND_CHAT_MESSAGE:
+                                                if delay > 0:
+                                                    await asyncio.sleep(delay)
+                                                print("[RaidGuard] Stopping stream now (post-raid)...")
                                                 try:
-                                                    _send_chat_message(RAID_CHAT_MESSAGE)
-                                                except Exception as e:
-                                                    print("[RaidGuard] chat message failed:", e)
-                                        except Exception as e:
-                                            print("[RaidGuard] OBS stop failed:", e)
+                                                    await asyncio.to_thread(_obs_stop_stream)
+                                                except Exception:
+                                                    _obs_stop_stream()
+                                                if RAID_SEND_CHAT_MESSAGE and RAID_CHAT_MESSAGE:
+                                                    try:
+                                                        msg = RAID_CHAT_MESSAGE.format(channel=target_login or "the channel")
+                                                        _send_chat_message(msg)
+                                                    except Exception as e:
+                                                        print("[RaidGuard] chat message failed:", e)
+                                            except Exception as e:
+                                                print("[RaidGuard] stop-after-delay error:", e)
+                                        asyncio.create_task(_stop_after_delay(RAID_AUTO_STOP_DELAY))
                             elif mtype == "revocation":
                                 sub = data.get("payload", {}).get("subscription", {})
                                 if sub.get("type") == "channel.raid":
-                                    print("[RaidGuard] subscription revoked -> will re-subscribe when token valid again")
+                                    print("[RaidGuard] subscription revoked -> scheduling force resubscribe")
                                     _h_set("raid_subscribed", False)
+                                    _h_set("raid_force_resub", True)
                         elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
                             break
                 _h_set("raid_ws", False)
@@ -376,6 +424,8 @@ def start_raid_watcher_thread():
         print("[RaidGuard] not started:", e)
 
 def _notify_clients(kind: str, message: str) -> None:
+    if not ALERTS_BASE_URL:
+        return
     try:
         requests.post(f"{ALERTS_BASE_URL}/api/alert",
                       json={"type": kind, "message": message}, timeout=1.5)
@@ -383,10 +433,6 @@ def _notify_clients(kind: str, message: str) -> None:
         pass
 
 def _send_chat_message(message: str) -> None:
-    """Send a chat message to the broadcaster's own Twitch chat using the user OAuth token.
-    Requires the token to have user:write:chat and user:read:chat scopes (Twitch API 2024+).
-    Falls back silently if missing creds.
-    """
     token = _current_user_token()
     if not (token and TWITCH_CLIENT_ID and TWITCH_BROADCASTER_ID and message):
         return
@@ -400,16 +446,13 @@ def _send_chat_message(message: str) -> None:
         payload = {
             "broadcaster_id": TWITCH_BROADCASTER_ID,
             "sender_id": TWITCH_BROADCASTER_ID,
-            "message": message[:480]  # safety trim
+            "message": message[:480]
         }
         r = requests.post(url, headers=headers, json=payload, timeout=5)
         if r.status_code not in (200, 201):
-            try:
-                print(f"[RaidGuard] chat send failed {r.status_code}: {r.text[:300]}")
-            except Exception:
-                pass
+            print(f"[Chat] send failed {r.status_code}: {r.text[:300]}")
     except Exception as e:
-        print("[RaidGuard] chat send exception:", e)
+        print("[Chat] send exception:", e)
 
 # --- OBS control functions ---
 
@@ -497,9 +540,6 @@ def _obs_stop_stream() -> bool:
 
 # --- Bitrate fetch and parsing ---
 def _find_numbers_by_keys(d: Any, key_hints=("bitrate", "kbps", "bw", "bandwidth")) -> list[int]:
-    """Depth-first search to collect candidate numeric bitrate-like fields (ints) in the JSON.
-    Returns values assuming units are kbps when matching typical key names.
-    """
     out: list[int] = []
     if isinstance(d, dict):
         for k, v in d.items():
@@ -518,12 +558,9 @@ def fetch_bitrate_kbps() -> Optional[int]:
     try:
         r = requests.get(STATS_URL, timeout=REQUEST_TIMEOUT)
         r.raise_for_status()
-        # Try JSON first; some SLS builds return text/HTML JSON or XML.
-        data: Any
         try:
-            data = r.json()
+            data: Any = r.json()
         except ValueError:
-            # Attempt to extract JSON if the response is a single JSON string in text
             text = r.text.strip()
             if text.startswith("{") or text.startswith("["):
                 data = json.loads(text)
@@ -531,16 +568,13 @@ def fetch_bitrate_kbps() -> Optional[int]:
                 print("[SLS] Non-JSON stats; please expose JSON stats for reliable parsing.")
                 return None
 
-        # Prefer exact SLS structure under 'publishers'
         if isinstance(data, dict) and isinstance(data.get("publishers"), dict):
             pubs = data["publishers"]
             candidates: list[int] = []
-            for k, v in pubs.items():
+            for _, v in pubs.items():
                 if isinstance(v, dict):
-                    # Primary: integer bitrate (kbps)
                     if isinstance(v.get("bitrate"), (int, float)):
                         candidates.append(int(v["bitrate"]))
-                    # Fallback: bandwidth fields, convert Mbps -> kbps if present
                     elif isinstance(v.get("mbpsBandwidth"), (int, float)):
                         candidates.append(int(float(v["mbpsBandwidth"]) * 1000))
                     elif isinstance(v.get("kbpsBandwidth"), (int, float)):
@@ -548,51 +582,17 @@ def fetch_bitrate_kbps() -> Optional[int]:
             if candidates:
                 return max(candidates)
 
-        # Fallback: generic search by key hints across the JSON
         candidates = _find_numbers_by_keys(data)
         if candidates:
-            kbps = max(candidates)
-            return int(kbps)
+            return int(max(candidates))
         return None
     except Exception as e:
-        print(f"[SLS] Stats fetch failed: {e}")
+        print("[SLS] stats error:", e)
         return None
 
-
-# --- Minimal health state ---
-_HEALTH = {
-    "obs_connected": False,
-    "raid_ws": False,
-    "raid_subscribed": False,
-    "token_valid": None,
-    "chat_ws": False,
-    "chat_subscribed": False,
-    "raid_force_resub": False,
-}
-_HEALTH_LOCK = threading.Lock()
-
-def _h_set(k, v):
-    with _HEALTH_LOCK:
-        _HEALTH[k] = v
-
-def _h_snapshot():
-    with _HEALTH_LOCK:
-        return dict(_HEALTH)
-
-def _validate_user_token_once():
-    tok = _current_user_token()
-    if not tok:
-        _h_set("token_valid", False)
-        return
-    try:
-        r = requests.get("https://id.twitch.tv/oauth2/validate",
-                         headers={"Authorization": f"OAuth {tok}"}, timeout=5)
-        _h_set("token_valid", r.status_code == 200)
-    except Exception:
-        _h_set("token_valid", False)
-
 class _HealthHandler(http.server.BaseHTTPRequestHandler):
-    def log_message(self, *a): return
+    def log_message(self, *a):
+        return
     def do_GET(self):
         if self.path != "/health":
             self.send_response(404); self.end_headers(); return
@@ -665,6 +665,21 @@ def start_health_server(port=8765, max_retries: int = 20, retry_delay: float = 0
                     break
 
     threading.Thread(target=run, daemon=True, name="health").start()
+
+def _validate_user_token_once():
+    tok = _current_user_token()
+    if not tok:
+        _h_set("token_valid", False)
+        return
+    try:
+        r = requests.get(
+            "https://id.twitch.tv/oauth2/validate",
+            headers={"Authorization": f"OAuth {tok}"},
+            timeout=5,
+        )
+        _h_set("token_valid", r.status_code == 200)
+    except Exception:
+        _h_set("token_valid", False)
 
 def start_token_validator(interval_sec=600):
     def run():
