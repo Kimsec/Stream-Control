@@ -90,7 +90,7 @@ The system consists of two parts:
 ### 🔔 Alerts
 - Get notified when internet connection degrades
 - Get notified when connection returns to normal
-- Audio and visual notifications
+- Audio notifications
 
 ---
 
@@ -100,8 +100,9 @@ You need the following before setting up Stream Control:
 
 ### Software
 - Python 3.10 or newer
-- OBS Studio with obs-websocket plugin (version 5)
+- OBS Studio with obs-websocket (version 5)
 - nginx with RTMP module (if streaming to multiple platforms)
+- Stats page for streaming / API from SLS for instance
 
 ### Twitch Connection
 - Twitch account
@@ -220,6 +221,7 @@ python app.py
 ```bash
 python stream_guard.py
 ```
+OR USE SYSTEMD SERVICE TO MAKE THEM AUTO START WITH COMPUTER. 
 
 ### Open the Control Panel
 
@@ -241,14 +243,14 @@ Here you can:
 - Switch scenes (Live, BRB, Starting)
 - View viewer count when live
 
-#### 🎮 Twitch Tab
+#### 🎮 Twitch Button
 Here you can:
 - Change stream title
 - Change category/game
 - Start raid
 - Get suggestions while typing
 
-#### 🔄 Restream Tab
+#### 🔄 Restream Button
 Here you manage where you stream:
 - Add multiple streaming destinations
 - Enable and disable destinations
@@ -262,7 +264,7 @@ Here you can:
 - Repair services if something isn't working
 - View system logs
 
-#### 🤖 Bot Tab
+#### 🤖 Bot Button
 Control chatbot service (if you have one)
 
 #### 💬 Chat Tab
@@ -474,7 +476,7 @@ Stream Control has built-in support for blocking unwanted IP addresses.
 
 **Possible causes:**
 - OBS is not running
-- obs-websocket is not installed
+- obs-websocket not configured
 - Wrong port or password
 
 **Solution:**
