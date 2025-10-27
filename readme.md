@@ -66,6 +66,10 @@ The system consists of two parts:
 - View viewer count while live
 - Embedded Twitch player and chat
 
+### 📦 Belabox Integration
+- Access and control the Belabox GUI directly from the control panel
+- Manage all settings and features of your Belabox device seamlessly
+
 ### 🔄 Multi-Streaming
 - Stream to multiple platforms simultaneously
 - Easy to add and remove destinations
