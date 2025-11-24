@@ -3,9 +3,11 @@
 </p>
 
 <h1 align="center">Stream Control & Stream Guard</h1>
+
 <br><p align="center" width="100%">
 <a href="https://www.buymeacoffee.com/kimsec">
-<img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&amp;emoji=%E2%98%95&amp;slug=kimsec&amp;button_colour=FFDD00&amp;font_colour=000000&amp;font_family=Inter&amp;outline_colour=000000&amp;coffee_colour=ffffff" alt="Buy Me A Coffee"></a></p>
+<img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&emoji=%E2%98%95&slug=kimsec&button_colour=FFDD00&font_colour=000000&font_family=Inter&outline_colour=000000&coffee_colour=ffffff" alt="Buy Me A Coffee"></a></p>
+
 <p align="center">
   <a href="https://github.com/Kimsec/Stream-Control/releases/latest">
   <img src="https://img.shields.io/github/v/release/kimsec/Stream-Control" alt="Latest Release"></a>
@@ -16,429 +18,606 @@
 </p>
 
 <p align="center">
-A unified streaming control panel that centralizes Twitch management, OBS scene automation, bitrate failover, raid auto-stop, admin chat commands, BELABOX + restream endpoints settings, alert sounds, chat viewing, and remote stream PC control—built to keep a flaky connection stable and reactive from one dashboard.
+A simple streaming control panel that brings everything you need into one place: Start and stop streams, switch scenes automatically, change Twitch titles, manage where you stream to, and control your streaming PC - all from one dashboard.
 </p>
 
 ---
 
 ## Table of Contents
-- [Overview](#overview)
-- [Features](#features)
-- [Architecture](#architecture)
-- [Quick Start](#quick-start)
-- [Prerequisites](#prerequisites)
+- [What is Stream Control?](#what-is-stream-control)
+- [Main Features](#main-features)
+- [Before You Start](#before-you-start)
 - [Installation](#installation)
-- [Configuration](#configuration)
-- [Running the Services](#running-the-services)
-- [Using the Web UI](#using-the-web-ui)
-- [Restream Management](#restream-management)
+- [Setup](#setup)
+- [How to Use Stream Control](#how-to-use-stream-control)
+- [Manage Streaming Destinations](#manage-streaming-destinations)
 - [Chat Commands](#chat-commands)
-- [Bitrate & Raid Automation](#bitrate--raid-automation)
-- [Twitch Integration & Tokens](#twitch-integration--tokens)
-- [Alert Sound](#alert-sound)
-- [Logs Viewer](#logs-viewer)
-- [Health Indicators](#health-indicators)
-- [Security Recommendations](#security-recommendations)
-- [Ip Banning](#ip-banning)
+- [Automatic Features](#automatic-features)
+- [Audio Alerts](#audio-alerts)
+- [Log Viewer](#log-viewer)
+- [Status Indicators](#status-indicators)
+- [Security Tips](#security-tips)
+- [IP Banning](#ip-banning)
 - [Troubleshooting](#troubleshooting)
-- [Extending](#extending)
 - [Contributing](#contributing)
 
 ---
 
-## Overview
+## What is Stream Control?
 
-Stream-Control consists of:
+Stream Control is a web-based control panel that makes it easier to manage your stream. Instead of jumping between different programs and websites, you get everything in one place.
 
-1. A Flask-based control panel (web dashboard).
-2. A companion background process (Stream Guard) that:
-   - Monitors bitrate via a stats endpoint (e.g. SRS / SLS / nginx module JSON)
-   - Switches scenes automatically (LIVE <-> lowbitrate)
-   - Listens for Twitch outgoing raids (EventSub WebSocket) and can stop the stream
-   - Exposes a local health JSON polled by the panel
-3. An overlay alert channel (WebSocket) for visual/audio notifications (e.g. low bitrate).
-
-No database—simple JSON + environment variables.
+The system consists of two parts:
+1. **Control Panel** - A website where you control everything
+2. **Stream Guard** - A background program that automatically monitors your stream
 
 ---
 
-## Features
+## Main Features
 
-- OBS start/stop + scene switching.
-- Twitch title & category update with live search.
-- Outgoing raid trigger.
-- Automatic bitrate-based fallback & recovery scene logic.
-- Automatic Twitch user token maintenance (refresh & persistence).
-- EventSub (channel.raid) with reconnect + revocation recovery + resubscribe.
-- Restream editor (writes JSON, regenerates nginx push config, auto reload).
-- Wake-on-LAN / restart / shutdown for remote Mini-PC.
-- Optional systemd chatbot control.
-- Overlay alert push (low / restored).
-- Health/status indicators (OBS, raid WS, subscription, token, etc.).
-- Chat commands (!start, !live, !brb, !fix, !stop) via EventSub chat messages (admins only, case sensitive).
+### 🎮 OBS Control
+- Start and stop streams
+- Switch between scenes
+- View OBS status
 
----
+### 📺 Twitch Management
+- Change stream title and category
+- Start raids to other streamers
+- View viewer count while live
+- Embedded Twitch player and chat
 
-## Architecture
+### 📦 Belabox Integration
+- Access and control the Belabox GUI directly from the control panel
+- Manage all settings and features of your Belabox device seamlessly
 
-Component | Role
-----------|-----
-`app.py` | UI endpoints, token refresh, restream config generation, alerts broadcast
-`stream_guard.py` | Bitrate/scene logic, raid EventSub, health server
-`static/main.js` | UI interactions, polling, modals, toasts
-`templates/` | HTML + nginx Jinja2 template
-`twitch_tokens.json` | Access + refresh token store (rotated automatically)
+### 🔄 Multi-Streaming
+- Stream to multiple platforms simultaneously
+- Easy to add and remove destinations
+- Enable/disable without needing to restart
 
-Processes are decoupled for resilience.
+### 🤖 Automatic Features
+- Automatically switch scenes when internet connection degrades
+- Automatically stop stream after raid (optional)
+- Keep stream stable even with unstable connection
 
----
+### 💻 Remote PC Control
+- Turn on PC via Wake-on-LAN
+- Restart PC
+- Shutdown PC
+- Repair services if something hangs
 
-## Quick Start
+### 💬 Chat Commands
+- Control stream directly from Twitch chat
+- Only administrators can use commands
+- Commands like !start, !live, !brb, !stop
 
-```bash
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-# Edit .env
-python app.py
-python stream_guard.py
-```
-
-Open <http://localhost:5000> (login with LOGIN_PASSWORD).
+### 🔔 Alerts
+- Get notified when internet connection degrades
+- Get notified when connection returns to normal
+- Audio notifications
 
 ---
 
-## Prerequisites
+## Before You Start
 
-- Python 3.10+
-- OBS with obs-websocket v5
-- nginx with RTMP module (if restreaming)
-- Stats endpoint (for bitrate switching)
-- Twitch API credentials (Client ID + Secret + user tokens)
-- Optional: stunnel (RTMPS), systemd
+You need the following before setting up Stream Control:
+
+### Software
+- Python 3.10 or newer
+- OBS Studio with obs-websocket (version 5)
+- nginx with RTMP module (if streaming to multiple platforms)
+- Stats page for streaming / API from SLS for instance
+
+### Twitch Connection
+- Twitch account
+- Twitch API access (Client ID and Secret)
+- You must generate tokens to connect to Twitch
+
+### Optional
+- stunnel (for RTMPS support)
+- systemd (for automatic startup on Linux)
 
 ---
 
 ## Installation
 
+### Step 1: Download Stream Control
+
 ```bash
 git clone https://github.com/Kimsec/Stream-Control.git
 cd Stream-Control
+```
+
+### Step 2: Set up Python Environment
+
+```bash
 python -m venv venv
-source venv/bin/activate
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
+```
+
+### Step 3: Copy Configuration File
+
+```bash
 cp .env.example .env
 ```
 
----
-
-## Configuration
-
-Key groups in `.env`:
-
-Group | Examples
-------|---------
-Flask/Auth | FLASK_SECRET_KEY, LOGIN_PASSWORD
-OBS | OBS_HOST, OBS_PORT, OBS_PASSWORD
-Bitrate | STATS_URL, BITRATE_LOW_KBPS, BITRATE_HIGH_KBPS, POLL_INTERVAL_SEC, LOW_CONSEC_SAMPLES
-Scenes | LIVE_SCENE_NAME, LOW_SCENE_NAME
-Restream | CONFIG_PATH, NGINX_CONF_OUT
-Mini-PC | MINI_PC_USER, MINI_PC_IP, MAC_ADDRESS
-Twitch | TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, TWITCH_BROADCASTER_ID, TWITCH_OAUTH_TOKEN, TWITCH_REFRESH_TOKEN, TWITCH_TOKENS_PATH
-Raid | RAID_AUTO_STOP_ENABLED, RAID_AUTO_STOP_DELAY
-Chat Commands | TWITCH_ADMINS, STARTING_SCENE_NAME, BRB_SCENE_NAME
-Behavior | WAIT_FOR_STREAM_START, EXIT_WHEN_STREAM_ENDS, IDLE_WHEN_STREAM_ENDS, LIVE_SCENE_LOW_GRACE_SEC
-Overlay | ALERTS_BASE_URL
-
-Tokens are auto-refreshed and persisted.
+Now you need to edit the `.env` file with your own settings (see next section).
 
 ---
 
-## Running the Services
+## Setup
 
-Development:
+Open the `.env` file in a text editor and fill in these important settings:
 
-```bash
-python app.py
-python stream_guard.py
-```
+### Basic Settings
 
-Production:
+| Setting | What is it? | Example |
+|---------|-------------|---------|
+| `LOGIN_PASSWORD` | Password to log into the control panel | `MySecretPassword123` |
+| `FLASK_SECRET_KEY` | A random text string for security | Generate a long, random text |
 
-- `gunicorn` for app.py
-- systemd units for both processes
-- Auto-restart on failure
+### OBS Connection
 
----
+| Setting | What is it? |
+|---------|-------------|
+| `OBS_HOST` | IP address of the PC running OBS (usually `localhost`) |
+| `OBS_PORT` | Port for obs-websocket (usually `4455`) |
+| `OBS_PASSWORD` | Password you set in obs-websocket |
 
-## Using the Web UI
+### Scene Names
 
-Section | Purpose
---------|--------
-Status | OBS state, scene, health dots
-Twitch | Title/category edit, raid
-Restream | Manage push endpoints / Restream endpoints
-Stream-PC | Wake / reboot / shutdown
-Bot | Control a systemd service (optional)
-Chat | Embedded Twitch chat
-Alerts | Sounds when visiting Website
+| Setting | What is it? |
+|---------|-------------|
+| `LIVE_SCENE_NAME` | Name of the scene you use when live |
+| `LOW_SCENE_NAME` | Name of the scene shown during poor internet |
+| `BRB_SCENE_NAME` | Name of the "Be Right Back" scene |
+| `STARTING_SCENE_NAME` | Name of the "Starting Soon" scene (optional) |
 
-Toasts provide immediate feedback.
+### Twitch Connection
 
-### Embedded Twitch Player
+| Setting | What is it? | How to get it? |
+|---------|-------------|----------------|
+| `TWITCH_CLIENT_ID` | ID for your Twitch app | Create app at dev.twitch.tv |
+| `TWITCH_CLIENT_SECRET` | Secret for your Twitch app | From same place |
+| `TWITCH_BROADCASTER_ID` | Your Twitch user ID | Use twitch.tv/popout/.../viewercard |
+| `TWITCH_OAUTH_TOKEN` | Access token | Generate via Twitch API |
+| `TWITCH_REFRESH_TOKEN` | Refresh token | Generated at same time as access token |
 
-- Toggle a top Twitch player from the Chat tab by double‑clicking the Chat tab label.
-- The player loads edge‑to‑edge, starts muted with autoplay, and is layered above the chat.
-- Hiding the player fully unloads the iframe to stop audio and save bandwidth.
-- The correct channel is resolved automatically from `/twitch/channel_info` and cached for instant display.
+### Internet Speed Monitoring
 
-Note: Twitch requires the page’s hostname to be listed in the embed `parent` parameter; the template injects this automatically.
+| Setting | What is it? |
+|---------|-------------|
+| `STATS_URL` | URL to statistics endpoint for bitrate monitoring |
+| `BITRATE_LOW_KBPS` | How low bitrate (in kbps) before scene switches |
+| `BITRATE_HIGH_KBPS` | How high bitrate before switching back |
 
-### Viewer count (OBS tab)
+### Streaming PC Remote Control
 
-- While live, the OBS tab shows “Viewers: N”.
-- Polling is enabled only when streaming and stops when offline to minimize load.
-- Backend endpoint: `GET /twitch/stream_info` → `{ is_live, viewer_count, title, game_name, started_at }`.
-
----
-
-### Repair Backend
-
-If the backend feels stuck (e.g., nginx not serving correctly or StreamGuard appears unresponsive), the Mini-PC tab includes a "Repair Backend" button. This triggers a controlled restart of critical services to recover quickly.
-
-What it does (by default):
-
-- Restarts nginx
-- Restarts StreamGuard (the guard process handling bitrate and EventSub)
-- Restarts Stunnel (RTMPS)
-
-Notes:
-
-- The operation is idempotent and safe to run when services are already healthy.
-- Use this when health indicators show red for nginx/StreamGuard/Stunnel or the UI becomes unresponsive due to those services.
-
-## Restream Management
-
-Workflow:
-
-1. Open Restream panel.
-2. Edit/add endpoints (checkbox = enabled).
-3. Save → JSON updated → nginx config rendered → nginx reloaded automatically.
-4. Only enabled endpoints produce `push` lines.
-
----
-
+| Setting | What is it? |
+|---------|-------------|
+| `MINI_PC_IP` | IP address of the streaming PC |
+| `MINI_PC_USER` | Username on the streaming PC |
+| `MAC_ADDRESS` | MAC address of the network card (for Wake-on-LAN) |
 
 ### Chat Commands
 
-Chat commands are processed via the Twitch EventSub `channel.chat.message` subscription.
-A valid user access token (loaded from `twitch_tokens.json`) is required and must include the chat scopes: `user:read:chat and user:write:chat`.
+| Setting | What is it? | Example |
+|---------|-------------|---------|
+| `TWITCH_ADMINS` | List of users who can use chat commands | `user1,user2,user3` |
 
-Only admins listed in `TWITCH_ADMINS` (comma separated, lowercase) are authorized.
-Commands are CASE SENSITIVE and must match exactly:
-
-Command | Action
-------- | ------
-`!start` | Start the stream (ignored if already live) then switch to `STARTING_SCENE_NAME` (if set) or stay on current
-`!live`  | Switch to `LIVE_SCENE_NAME`
-`!brb`   | Switch to `BRB_SCENE_NAME`
-`!fix`   | Switch to BRB then back to LIVE after ~1 second
-`!stop`  | Stop the current stream
-
-Environment variables affecting commands:
-
-- `TWITCH_ADMINS=admin1,admin2`
-- `STARTING_SCENE_NAME=Starting soon` (optional)
-- `BRB_SCENE_NAME=BRB` (optional; defaults handled in code)
-
-If scenes are missing in OBS, commands log errors but do not crash the guard.
+**Note:** All usernames must be lowercase and without the @ symbol.
 
 ---
 
-## Bitrate & Raid Automation
+## How to Use Stream Control
 
-Feature | Behavior
---------|---------
-Low fallback | Switch after N consecutive low samples
-Recovery | Switch back once high threshold met
-Raid auto-stop | Optional post-raid stream stop
-Idle handling | Idle, continue, or exit when stream ends (configurable)
+### Start the Services
 
-Scene transitions also dispatch overlay alerts.
+You need to start two programs:
 
----
+**Terminal 1 - Control Panel:**
+```bash
+python app.py
+```
 
+**Terminal 2 - Stream Guard:**
+```bash
+python stream_guard.py
+```
+OR USE SYSTEMD SERVICE TO MAKE THEM AUTO START WITH COMPUTER. 
 
-## Twitch Integration & Tokens
+### Open the Control Panel
 
-- Automatic refresh when invalid or near expiry.
-- Shared file `twitch_tokens.json` used by Stream Guard.
-- Health shows validity + remaining lifetime.
-- Revoked tokens trigger subscription re-attempt after refresh.
+Go to http://localhost:5000 in your web browser and log in with the password you set in `.env`.
 
-Both `app.py` and `stream_guard.py` use the same token file (`twitch_tokens.json`, path set by `TWITCH_TOKENS_PATH`).
+### Control Panel Overview
 
-- app.py is the ONLY process that refreshes / rotates the access + refresh tokens (writes the file).
-- stream_guard.py is read‑only: it loads the current access token to:
-  - Subscribe to EventSub topics (raids, chat messages)
-  - Send chat messages (Helix Chat API) for feedback / raid completion
-  - Read live stream info (Helix `streams`) exposed by `GET /twitch/stream_info` for the viewer counter
-Required scopes for full functionality (recommend granting when generating initial tokens):
+The control panel is divided into several tabs:
 
-- user:read:chat
-- user:write:chat
-- channel:manage:broadcast (title/category updates)
-- channel:read:subscriptions (optional future use)
-If a token is revoked or expires, app.py refresh logic updates the file; guard detects validity returning to healthy automatically.
+#### 📊 Status Tab
+Here you can see:
+- Whether OBS is connected
+- Which scene is active
+- Status of all services (green/red/gray dots)
 
+#### 📺 OBS Tab
+Here you can:
+- Start and stop stream
+- Switch scenes (Live, BRB, Starting)
+- View viewer count when live
 
-## Alert Sound
+#### 🎮 Twitch Button
+Here you can:
+- Change stream title
+- Change category/game
+- Start raid
+- Get suggestions while typing
 
-- Alerts when low bitrate / Connection restored (TTS on website)
-- Send: `POST /api/alert` `{ "type": "low"|"restored", "message": "..." }`
-- Transport: WebSocket (stateless; waits for next event)
+#### 🔄 Restream Button
+Here you manage where you stream:
+- Add multiple streaming destinations
+- Enable and disable destinations
+- All changes are automatically activated
 
----
+#### 💻 Mini-PC Tab
+Here you can:
+- Turn on streaming PC
+- Restart PC
+- Shutdown PC
+- Repair services if something isn't working
+- View system logs
 
-## Logs Viewer
+#### 📦 Belabox Tab
+Here you can:
+- Access the Belabox GUI directly from the control panel
+- Control all settings and features available in the Belabox interface
+- Manage your Belabox device without leaving the Stream Control dashboard
 
-A built-in, mobile-friendly log viewer is available from the Mini-PC tab via the "Logs" button. It helps you inspect systemd service logs without SSH.
+The Belabox tab embeds the Belabox interface, providing seamless integration for managing your Belabox device.
 
-Features:
+#### 🤖 Bot Button
+Control chatbot service (if you have one)
 
-- Service dropdown: switch between multiple services without mixing lines. Current services:
-  - stream-guard.service (StreamGuard)
-  - chatbot.service (optional)
-  - nginx.service
-  - stunnel-kick.service
-  - stream-control.service (the web app itself)
-- Line count selector: load last 25 (default), 50, or 100 lines.
-- Follow toggle: continue streaming new lines in real time via WebSocket.
-- Timestamp format: rendered in journalctl short style, e.g. "Sep 08 04:56:38:" for readability.
-- Color cues: basic highlighting for ERROR/WARN/INFO/DEBUG.
-- Auto-scroll, large buffer trimming, and service-isolated sessions avoid stale entries when switching.
-
-API (optional):
-
-- HTTP: GET `/api/logs?service=<key>&lines=<n>` returns the initial batch of lines.
-- WS:   connect to `/ws/logs?service=<key>` to follow (`-n 0` on the backend prevents duplicate backlog).
-- Accepted service keys match the UI dropdown (e.g. `streamguard`, `chatbot`, `nginx`, `stunnel`, `streamcontrol`).
-
-Notes:
-
-- Changing the selected service closes the previous follow stream and ignores stale messages by session.
-- The default 25 lines load immediately on open; follow can be toggled on/off without reloading the history.
-
----
-
-## Health Indicators
-
-The dashboard polls a lightweight health endpoint and renders compact status dots (ok/offline/error) with labels.
-
-Data source: GET `/api/sg_status`
-
-Provided states (UI shows a dot + concise label):
-
-- Chatbot: `chatbot_state` (systemd unit state)
-- Nginx: `nginx_state` (systemd unit state)
-- Stunnel: `stunnel_state` (systemd unit state)
-- StreamGuard: `streamguard_state` (systemd unit state)
-- ChatGuard: derived from `chat_ws` and `chat_subscribed` (ok when both are true; shows `ws` when WS is up but not yet subscribed)
-- SLS: `sls_state` (stats endpoint availability)
-- OBS: `obs_connected` (ok when true)
-- Twitch Events WS: `raid_ws` (EventSub WebSocket alive)
-- Raid AutoStop: `raid_subscribed` (EventSub `channel.raid` subscription active)
-- Twitch Token: `token_valid` plus `token_expires_in` (minutes shown in the label when valid)
-
-Color coding in UI:
-
-- ok: green dot
-- offline: gray dot
-- error: red dot (e.g., explicit error conditions)
-
-Operational notes:
-
-- StreamGuard’s EventSub client auto-retries subscription with backoff after network/token changes.
-- When a token transitions from invalid to valid, a forced re-subscribe attempt is scheduled promptly.
+#### 💬 Chat Tab
+- View Twitch chat directly
+- Double-click "Chat" to show Twitch player
 
 ---
 
-## Security Recommendations
+## Manage Streaming Destinations
 
-- Reverse proxy + HTTPS
-- Limit network exposure (VPN / LAN)
-- Least-privilege sudo (only what’s required)
-- Strong secrets (FLASK_SECRET_KEY, LOGIN_PASSWORD)
-- Restrict token file permissions (600)
-- Never commit `.env` or live stream keys
+Stream Control makes it easy to stream to multiple platforms simultaneously.
 
+### How to Add a Streaming Destination:
 
+1. Go to the **Restream Tab**
+2. Click **Edit Endpoints**
+3. In the popup window:
+   - **Name**: Give it a descriptive name (e.g., "YouTube", "Facebook")
+   - **URL**: Paste the RTMP URL from the platform
+   - **Checkbox**: Check to enable the destination
+4. Click **Save**
+
+The system will automatically:
+- Update the configuration
+- Start streaming to the new destinations
+- Show green status icon when everything is working
+
+### Enable and Disable Destinations
+
+You can at any time:
+- Uncheck to stop streaming to a destination
+- Check again to re-enable it
+- Delete destinations you no longer need
+
+---
+
+## Chat Commands
+
+You can control your stream directly from Twitch chat. Only users listed in `TWITCH_ADMINS` can use these commands.
+
+**Important:** Commands must be typed EXACTLY as shown (lowercase).
+
+| Command | What does it do? |
+|---------|------------------|
+| `!start` | Starts the stream and goes to starting scene |
+| `!live` | Switches to live scene |
+| `!brb` | Switches to "Be Right Back" scene |
+| `!fix` | Switches to BRB and back to Live (to fix small issues) |
+| `!stop` | Stops the stream |
+
+### Example:
+If you type `!brb` in chat, the stream will automatically switch to your BRB scene.
+
+---
+
+## Automatic Features
+
+Stream Guard continuously monitors your stream and makes adjustments automatically.
+
+### 📉 Automatic Scene Switching During Poor Internet
+
+**How it works:**
+1. Stream Guard continuously checks your internet connection
+2. If bitrate (speed) falls below the threshold you set, this happens:
+   - Stream automatically switches to "low bitrate" scene
+   - You receive an alert (audio and visual)
+3. When internet is stable again:
+   - Stream automatically returns to live scene
+   - You're notified that the connection is back
+
+**Settings you can adjust:**
+- `BITRATE_LOW_KBPS`: How low bitrate before switching scene
+- `BITRATE_HIGH_KBPS`: How high bitrate must be before switching back
+- `LOW_CONSEC_SAMPLES`: How many consecutive poor measurements before switching
+
+### 🎯 Automatic Stop After Raid
+
+If enabled, the stream will automatically stop shortly after you raid another streamer.
+
+**To enable:**
+Set `RAID_AUTO_STOP_ENABLED=true` in the `.env` file.
+
+**Delay:**
+Set `RAID_AUTO_STOP_DELAY` (in seconds) for how long to wait before stopping.
+
+---
+
+## Audio Alerts
+
+Stream Control can notify you with sound when important events occur.
+
+### What do you get alerts for?
+- 🔴 **Low bitrate**: When internet connection degrades
+- 🟢 **Connection restored**: When internet is back to normal
+
+### How does it work?
+Alerts use text-to-speech (TTS) to speak messages aloud on your website. This allows you to hear alerts even if you're not looking at the screen.
+
+---
+
+## Log Viewer
+
+You can view logs from all your services directly in the control panel.
+
+### How to Open Log Viewer:
+1. Go to the **Mini-PC Tab**
+2. Click the **Logs** button
+
+### What can you do?
+- **Select service**: View logs from StreamGuard, nginx, stunnel, etc.
+- **Select number of lines**: Show the last 25, 50, or 100 lines
+- **Follow live**: Enable to see new log messages in real-time
+- **Color codes**: Errors shown in red, warnings in yellow, etc.
+
+This makes it easy to find out what's happening if something goes wrong, without using complex commands.
+
+---
+
+## Status Indicators
+
+At the top of the control panel, you'll see small dots showing the status of all services:
+
+### What do the colors mean?
+
+| Color | Meaning |
+|-------|---------|
+| 🟢 Green | Everything is working as it should |
+| ⚪ Gray | Service is not active or disconnected |
+| 🔴 Red | There's a problem that needs fixing |
+
+### What is monitored?
+
+| Service | What it is |
+|---------|-----------|
+| **Chatbot** | Your chat bot (if you have one) |
+| **Nginx** | Server that sends stream to multiple places |
+| **Stunnel** | Secure streaming connection |
+| **StreamGuard** | Background program monitoring your stream |
+| **ChatGuard** | Chat monitoring and commands |
+| **SLS** | Streaming server status |
+| **OBS** | Whether OBS is connected |
+| **Twitch Events** | Whether Twitch events work (raid, chat) |
+| **Raid AutoStop** | Whether automatic raid stop is active |
+| **Twitch Token** | Whether Twitch connection is valid |
+
+The dots update automatically, so you always see current status.
+
+---
+
+## Security Tips
+
+Stream Control gives you control over a lot, so it's important to secure it properly:
+
+### ✅ Recommended Security Measures
+
+1. **Use Strong Passwords**
+   - Choose a long and complex password for `LOGIN_PASSWORD`
+   - Generate a long, random string for `FLASK_SECRET_KEY`
+
+2. **Protect Access**
+   - Use VPN or limit to local network
+   - If opening to internet: set up a reverse proxy with HTTPS
+
+3. **Protect Token File**
+   - Set correct file permissions on `twitch_tokens.json` (only owner can read/write)
+   - Command: `chmod 600 twitch_tokens.json`
+
+4. **Don't Share Secrets**
+   - Never share the `.env` file with others
+   - Don't commit `.env` to Git
+   - Never share stream keys publicly
+
+5. **Keep System Updated**
+   - Update Stream Control regularly
+   - Keep Python and other dependencies updated
+
+6. **Minimize Access**
+   - Only grant necessary sudo permissions
+   - Limit which commands can be run via control panel
+
+---
 
 ## IP Banning
 
-Stream-Control now includes support for IP banning to protect against unwanted connections or abuse. When an IP is banned:
+Stream Control has built-in support for blocking unwanted IP addresses.
 
-- Connections from the banned IP address are immediately blocked.
-- A log entry is created to indicate that a blocked IP attempted to connect.
-- Banned IPs can be managed via the `bans.json` file or directly through the admin control panel at `/bans`.
+### How it works:
+- Connections from blocked IP addresses are stopped immediately
+- Blocked attempts are logged
+- You can manage blocks via the `/bans` page
 
-### How to Enable IP Banning
+### Manage Blocked IP Addresses:
+1. Go to `/bans` in your browser (e.g., http://localhost:5000/bans)
+2. Here you can:
+   - View list of blocked IP addresses
+   - Add new IP addresses to block
+   - Unblock IP addresses
 
-1. IP banning is enabled by default.
-
-
-
-#### Important Notes
-
-- Ensure the `bans.json` file is protected against unauthorized access.
-- Use this feature cautiously to avoid accidentally blocking legitimate users.
-- Unbanning IPs can be done easily via the admin control panel at `/bans`.
+### Important:
+- Be careful not to block yourself
+- Protect the `bans.json` file from unauthorized access
+- Blocked IP addresses are stored in `bans.json`
 
 ---
 
 ## Troubleshooting
 
-Issue | Hint
-------|-----
-OBS “Error” | Check port/password & plugin
-Token stays invalid | Refresh token expired → reissue
-No raid stop | Verify raid_ws & raid_subscribed
-Bitrate static | STATS_URL response format
-nginx reload fails | Endpoint syntax / template values
-Chat missing | Ensure broadcaster_name + correct parent domain
+### Problem: OBS shows "Error" in status
 
-Check logs for both processes first.
+**Possible causes:**
+- OBS is not running
+- obs-websocket not configured
+- Wrong port or password
+
+**Solution:**
+1. Check that OBS is running
+2. Verify that obs-websocket plugin is installed (version 5)
+3. Double-check `OBS_PORT` and `OBS_PASSWORD` in `.env`
 
 ---
 
-## Extending
+### Problem: Twitch token remains invalid
 
-Ideas:
+**Possible causes:**
+- Refresh token has expired
+- Error in token file
 
-- HTTP Security headers (CSP, HSTS, Referrer-Policy)
-- “Grace window” by the start (ignore first X sec because of unstable output).
-- UI Timeline for logs (behind a button)
-- Watchdog thread: if main loop stalls > timeout → process exit (systemd restarter)
-- Async HTTP
-- More metrics
-- Role-based access
+**Solution:**
+1. Generate new tokens via Twitch API
+2. Update both `TWITCH_OAUTH_TOKEN` and `TWITCH_REFRESH_TOKEN` in `.env`
+3. Restart both services
+
+---
+
+### Problem: Raid doesn't stop stream
+
+**Possible causes:**
+- `RAID_AUTO_STOP_ENABLED` is not set to `true`
+- Twitch connection is not working
+
+**Solution:**
+1. Check that status indicators "Twitch Events WS" and "Raid AutoStop" are green
+2. Verify that `RAID_AUTO_STOP_ENABLED=true` in `.env`
+3. Check StreamGuard logs for more information
+
+---
+
+### Problem: Automatic scene switching doesn't work
+
+**Possible causes:**
+- `STATS_URL` is wrong or unavailable
+- Bitrate thresholds are set incorrectly
+
+**Solution:**
+1. Test `STATS_URL` in browser - should return JSON data
+2. Check that `BITRATE_LOW_KBPS` and `BITRATE_HIGH_KBPS` are reasonable values
+3. Check StreamGuard logs for bitrate measurements
+
+---
+
+### Problem: Nginx doesn't reload after restream changes
+
+**Possible causes:**
+- Syntax error in endpoint URL
+- nginx doesn't have permission to reload
+
+**Solution:**
+1. Double-check that all RTMP URLs are correct
+2. Check nginx logs for error messages
+3. Verify that user has sudo access to `nginx -s reload`
+
+---
+
+### Problem: Chat commands don't work
+
+**Possible causes:**
+- Username is not in `TWITCH_ADMINS`
+- Command is typed incorrectly (must be lowercase)
+- Chat connection is down
+
+**Solution:**
+1. Check that username is listed in `TWITCH_ADMINS` (lowercase, no @)
+2. Type command exactly as shown: `!start`, `!live`, `!brb`, `!fix`, `!stop`
+3. Verify that "ChatGuard" is green in status indicator
+
+---
+
+### Problem: Can't see Twitch player or chat
+
+**Possible causes:**
+- Wrong domain name in embed settings
+- Blocked by ad blocker
+- Twitch API issue
+
+**Solution:**
+1. Check that your domain name is correctly configured
+2. Try disabling ad blocker temporarily
+3. Check if you can open Twitch directly in browser
+
+---
+
+### General tips:
+- **Always check logs first** - They often show what's wrong
+- **Restart both services** - Many problems are solved with a restart
+- **Double-check `.env` file** - Many errors come from incorrect configuration
+- **Test step by step** - Start with basic functionality before adding more
 
 ---
 
 ## Contributing
 
-1. Fork
-2. Branch `feat/<name>`
-3. Commit with clear messages
-4. Open PR (Problem / Solution / Test)
+Want to help make Stream Control better? Great!
+
+### How to Contribute:
+
+1. **Fork the project** on GitHub
+2. **Create a new branch** for your feature: `git checkout -b my-new-feature`
+3. **Make your changes** with clear commit messages
+4. **Push to your fork**: `git push origin my-new-feature`
+5. **Open a Pull Request** with description of:
+   - The problem you're solving
+   - How the solution works
+   - How you tested it
+
+### Ideas for Improvements:
+- Translations to more languages
+- Support for more streaming platforms
+- Better mobile adaptation
+- More automation features
+- Documentation and tutorials
+
+All contributions are welcome, whether bug fixes, new features, or improved documentation!
 
 ---
 
 ## Disclaimer
 
-Provided “as is.” Review before exposing publicly.
+Stream Control is provided "as is" without any warranties. Please review all configuration before exposing the system publicly on the internet.
 
 ---
 
-Happy streaming.
+**Happy streaming!** 🎮📺
+
+If you have questions or need help, check the GitHub repo for issues and discussions.
