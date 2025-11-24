@@ -228,6 +228,8 @@
     </footer>
     <!-- Toast container -->
     <div id="toast-host" class="toast-host" aria-live="polite" aria-atomic="true"></div>
+    <!-- hls.js for browser HLS playback (fallback to Twitch if HLS not available) -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest" defer></script>
     <script src="{{ url_for('static', filename='main.js') }}" defer></script>
 </body>
 </html>

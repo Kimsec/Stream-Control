@@ -40,12 +40,13 @@ tabs.forEach(tab => {
         const activeTabContent = document.getElementById(tab.getAttribute('data-tab'));
         activeTabContent.classList.add('active');
 
-        // Kun chat skjuler footer
+        // Kun chat skjuler footer og lar CSS styre høyde
         if (tab.getAttribute('data-tab') === 'chat') {
-            footer.style.display = 'none';
-            document.getElementById('chat-container').style.height = 'calc(100vh - 55px)';
+          footer.style.display = 'none';
+          const chatContainerEl = document.getElementById('chat-container');
+          if (chatContainerEl) chatContainerEl.style.height = '';
         } else {
-            footer.style.display = '';
+          footer.style.display = '';
         }
     });
 });
@@ -1119,11 +1120,52 @@ function _setDot(id, ok){
 
 const twitchContainer = document.getElementById('twitch-player');
 const chatTab = document.querySelector('.tab[data-tab="chat"]');
-let twitchPlayerVisible = false;
-let _twitchIframeEl = null;
+let _previewVisible = false;
+let _previewEl = null;   // <video> for HLS or <iframe> for Twitch or <div> for placeholder
+let _previewType = null; // 'hls' | 'twitch' | 'placeholder'
+let _previewSourcePref = 'auto'; // 'auto' | 'hls' | 'twitch' - user preference
+let _previewPollInterval = null; // Auto-refresh interval when showing placeholder
+let _previewResizeObserver = null;
 const _twitchEmbedTmpl = twitchContainer?.dataset.embedTemplate || 'https://player.twitch.tv/?channel={channel}&parent={parent}';
 const _twitchEmbedAllow = twitchContainer?.dataset.embedAllow || 'autoplay; fullscreen';
 const _twitchEmbedTitle = twitchContainer?.dataset.embedTitle || 'Twitch player';
+
+function _setChatPreviewOffset(px){
+  const docEl = document.documentElement;
+  if(!docEl) return;
+  const val = Math.max(0, Math.round(px || 0));
+  docEl.style.setProperty('--preview-offset', val + 'px');
+}
+
+function _syncPreviewOffset(){
+  if(!_previewVisible || !twitchContainer || twitchContainer.classList.contains('hidden')){
+    _setChatPreviewOffset(0);
+    return;
+  }
+  _setChatPreviewOffset(twitchContainer.offsetHeight || 0);
+}
+
+function _watchPreviewHeight(){
+  if(!window.ResizeObserver || !twitchContainer) return;
+  if(!_previewResizeObserver){
+    _previewResizeObserver = new ResizeObserver(entries => {
+      const entry = entries && entries[0];
+      const h = entry ? entry.contentRect.height : (twitchContainer.offsetHeight || 0);
+      _setChatPreviewOffset(_previewVisible ? h : 0);
+    });
+  }
+  try{ _previewResizeObserver.observe(twitchContainer); }catch(_){ }
+}
+
+function _unwatchPreviewHeight(){
+  if(_previewResizeObserver && twitchContainer){
+    try{ _previewResizeObserver.unobserve(twitchContainer); }catch(_){ }
+  }
+}
+
+window.addEventListener('resize', () => {
+  if(_previewVisible) _syncPreviewOffset();
+});
 
 function _getCachedChannel(){
   const fresh = _channelInfoCache.data && (Date.now() - _channelInfoCache.ts) < CHANNEL_INFO_TTL_MS;
@@ -1151,37 +1193,340 @@ function _createTwitchIframeSync(){
   return iframe;
 }
 
-function setTwitchPlayerVisible(show){
-  if(!twitchContainer) return;
-  const shouldShow = !!show;
-  if(shouldShow){
-    if(!_twitchIframeEl){
-      const ifr = _createTwitchIframeSync();
-      if(ifr){
-        _twitchIframeEl = ifr;
-        twitchContainer.appendChild(_twitchIframeEl);
-      }
-    }
-    twitchContainer.classList.remove('hidden');
-  } else {
-    twitchContainer.classList.add('hidden');
-    if(_twitchIframeEl){
-      try{ _twitchIframeEl.src = 'about:blank'; }catch(_){ }
-      _twitchIframeEl.remove();
-      _twitchIframeEl = null;
-    }
-  }
-  twitchPlayerVisible = shouldShow;
+async function _ensureBroadcasterName(){
+  if((window.__broadcasterName) || _getCachedChannel()) return true;
+  try{
+    const r = await fetch('/twitch/channel_info');
+    if(!r.ok) return false;
+    const d = await r.json();
+    const name = (d && (d.broadcaster_name || d.channel || d.login)) || null;
+    if(name){ window.__broadcasterName = name; return true; }
+  }catch(_){ }
+  return false;
 }
 
-setTwitchPlayerVisible(false);
+function _fetchWithTimeout(url, ms){
+  return Promise.race([
+    fetch(url, { cache:'no-store' }),
+    new Promise((_, rej)=> setTimeout(()=>rej(new Error('timeout')), ms||1500))
+  ]);
+}
+
+async function _detectHlsUrl(){
+  // Ask backend for available HLS playlists (served by Flask from /tmp/hls)
+  try{
+    const r = await _fetchWithTimeout('/preview/list', 1200);
+    if(!r.ok) throw 0;
+    const j = await r.json();
+    const arr = (j && Array.isArray(j.playlists)) ? j.playlists : [];
+    if(arr.length){
+      // Use the newest (server returns sorted newest-first)
+      const rel = arr[0]; // e.g., 'live/<name>.m3u8'
+      const url = `/preview/hls/${rel}`;
+      // Probe quickly to confirm it's a playlist
+      try{
+        const pr = await _fetchWithTimeout(url, 1200);
+        if(pr.ok){
+          const body = await pr.text();
+          if(/^#EXTM3U/.test(body)) return url;
+        }
+      }catch(_){ /* ignore */ }
+    }
+  }catch(_){ /* ignore */ }
+  return null;
+}
+
+function _createHlsVideo(url){
+  const v = document.createElement('video');
+  v.controls = true;
+  v.autoplay = false;
+  v.muted = true; // allow autoplay
+  v.playsInline = true;
+  v.style.display = 'block';
+  v.style.width = '100%';
+  v.style.height = 'auto';
+  
+  // Når videoen er klar til å spille av, prøv å starte
+  v.addEventListener('canplay', () => {
+    const p = v.play();
+    if (p && p.catch) {
+      p.catch(err => {
+        console.debug('Autoplay blokkert:', err);
+      });
+    }
+  }, { once: true });
+
+  // Handle stream errors - switch to placeholder if stream dies
+  v.addEventListener('error', () => {
+    if(_previewVisible && _previewType === 'hls'){
+      _showPlaceholderAndPoll();
+    }
+  });
+
+  try{
+    if(window.Hls && window.Hls.isSupported()){
+      const hls = new window.Hls({
+        liveBackBufferLength: 15,
+        maxLiveSyncPlaybackRate: 1.15,
+        liveDurationInfinity: true,
+        lowLatencyMode: false,
+        liveSyncDurationCount: 1,
+        liveMaxLatencyDurationCount: 2,
+        maxBufferLength: 4
+      });
+      hls.loadSource(url);
+      hls.attachMedia(v);
+      
+      // Handle HLS errors - switch to placeholder if stream fails
+      hls.on(window.Hls.Events.ERROR, (event, data) => {
+        if(data.fatal){
+          if(_previewVisible && _previewType === 'hls'){
+            _showPlaceholderAndPoll();
+          }
+        }
+      });
+      
+      // Store hls instance for cleanup
+      v._hlsInstance = hls;
+    } else {
+      // Safari / native HLS
+      v.src = url;
+    }
+  }catch(_){ /* fallback handled by caller */ }
+  return v;
+}
+
+function _createPlaceholder(){
+  const placeholder = document.createElement('div');
+  placeholder.className = 'preview-placeholder';
+  placeholder.innerHTML = `
+    <div class="placeholder-content">
+      <div class="placeholder-icon">
+        <svg viewBox="0 0 24 24" width="64" height="64" fill="currentColor">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+        </svg>
+      </div>
+      <h3>Waiting for stream...</h3>
+      <p>The preview will appear automatically when streaming starts</p>
+      <div class="placeholder-spinner"></div>
+    </div>
+  `;
+  return placeholder;
+}
+
+async function _showPreview(){
+  if(!_previewVisible || !twitchContainer) return;
+  
+  // Cleanup existing HLS instance before clearing
+  if(_previewEl && _previewType === 'hls' && _previewEl._hlsInstance){
+    try{
+      _previewEl._hlsInstance.destroy();
+      _previewEl._hlsInstance = null;
+    }catch(_){}
+  }
+  
+  // Clear any existing child
+  twitchContainer.innerHTML = '';
+  _previewEl = null; _previewType = null;
+  
+  // Stop any existing poll
+  _stopPreviewPoll();
+  
+  // Respect user preference
+  if(_previewSourcePref === 'twitch'){
+    // Force Twitch
+    let ifr = _createTwitchIframeSync();
+    if(!ifr){
+      const ok = await _ensureBroadcasterName();
+      if(ok){ ifr = _createTwitchIframeSync(); }
+    }
+    if(ifr){ 
+      _previewEl = ifr; _previewType = 'twitch'; 
+      twitchContainer.appendChild(ifr); 
+      _renderToggleButton();
+      _syncPreviewOffset();
+      return;
+    }
+    // Twitch not available, show placeholder
+    _showPlaceholderAndPoll();
+    return;
+  }
+  
+  if(_previewSourcePref === 'hls'){
+    // Force HLS only
+    const hlsUrl = await _detectHlsUrl();
+    if(hlsUrl){
+      const vid = _createHlsVideo(hlsUrl);
+      if(vid){
+        _previewEl = vid; _previewType = 'hls';
+        twitchContainer.appendChild(vid);
+        _renderToggleButton();
+        _syncPreviewOffset();
+        return;
+      }
+    }
+    // HLS not available: show placeholder and poll
+    _showPlaceholderAndPoll();
+    return;
+  }
+  
+  // Auto mode: try HLS first, fallback to Twitch
+  const hlsUrl = await _detectHlsUrl();
+  if(hlsUrl){
+    const vid = _createHlsVideo(hlsUrl);
+    if(vid){
+      _previewEl = vid; _previewType = 'hls';
+      twitchContainer.appendChild(vid);
+      _renderToggleButton();
+      _syncPreviewOffset();
+      return;
+    }
+  }
+  // Fallback: Twitch iframe
+  let ifr = _createTwitchIframeSync();
+  if(!ifr){
+    const ok = await _ensureBroadcasterName();
+    if(ok){ ifr = _createTwitchIframeSync(); }
+  }
+  if(ifr){ 
+    _previewEl = ifr; _previewType = 'twitch'; 
+    twitchContainer.appendChild(ifr); 
+    _renderToggleButton();
+    _syncPreviewOffset();
+    return;
+  }
+  
+  // Nothing available: show placeholder and poll
+  _showPlaceholderAndPoll();
+}
+
+function _showPlaceholderAndPoll(){
+  if(!twitchContainer) return;
+  // Guard: if already showing placeholder, don't create another
+  if(_previewType === 'placeholder') return;
+  
+  // Cleanup existing HLS instance before clearing
+  if(_previewEl && _previewType === 'hls' && _previewEl._hlsInstance){
+    try{
+      _previewEl._hlsInstance.destroy();
+      _previewEl._hlsInstance = null;
+    }catch(_){}
+  }
+  
+  // Clear container and mark as placeholder immediately to prevent race condition
+  twitchContainer.innerHTML = '';
+  _previewType = 'placeholder';
+  
+  const placeholder = _createPlaceholder();
+  _previewEl = placeholder;
+  twitchContainer.appendChild(placeholder);
+  _renderToggleButton();
+  _syncPreviewOffset();
+  // Start polling every 3 seconds to check for stream
+  _startPreviewPoll();
+}
+
+function _startPreviewPoll(){
+  _stopPreviewPoll(); // Clear any existing
+  _previewPollInterval = setInterval(async () => {
+    if(!_previewVisible || _previewType !== 'placeholder') {
+      _stopPreviewPoll();
+      return;
+    }
+    // Try to detect stream again
+    const hlsUrl = await _detectHlsUrl();
+    if(hlsUrl){
+      // Stream is available! Reload preview
+      _showPreview();
+    }
+  }, 3000); // Check every 3 seconds
+}
+
+function _stopPreviewPoll(){
+  if(_previewPollInterval){
+    clearInterval(_previewPollInterval);
+    _previewPollInterval = null;
+  }
+}
+
+function _hidePreview(){
+  if(!twitchContainer) return;
+  _stopPreviewPoll(); // Stop polling when hiding
+  twitchContainer.classList.add('hidden');
+  if(_previewEl){
+    try{
+      if(_previewType === 'twitch'){ _previewEl.src = 'about:blank'; }
+      else if(_previewType === 'hls'){ 
+        // Cleanup HLS instance
+        if(_previewEl._hlsInstance){
+          _previewEl._hlsInstance.destroy();
+          _previewEl._hlsInstance = null;
+        }
+        _previewEl.pause && _previewEl.pause();
+      }
+    }catch(_){ }
+    _previewEl.remove();
+  }
+  _previewEl = null; _previewType = null;
+  _removeToggleButton();
+  _syncPreviewOffset();
+}
+
+function _renderToggleButton(){
+  // Remove existing toggle if any
+  _removeToggleButton();
+  if(!twitchContainer || !_previewVisible) return;
+  const btn = document.createElement('button');
+  btn.id = 'preview-source-toggle';
+  btn.className = 'preview-toggle-btn';
+  btn.title = 'Switch preview source';
+  btn.setAttribute('aria-label', 'Switch preview source');
+  // Icon: swap/arrows (minimal SVG)
+  btn.innerHTML = '<svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor"><path d="M8 5L3 10l5 5V5zm4 0v10l5-5-5-5z"/></svg>';
+  btn.addEventListener('click', _togglePreviewSource);
+  twitchContainer.appendChild(btn);
+}
+
+function _removeToggleButton(){
+  const existing = document.getElementById('preview-source-toggle');
+  if(existing) existing.remove();
+}
+
+function _togglePreviewSource(){
+  // Cycle: auto -> hls -> twitch -> auto
+  if(_previewSourcePref === 'auto') _previewSourcePref = 'hls';
+  else if(_previewSourcePref === 'hls') _previewSourcePref = 'twitch';
+  else _previewSourcePref = 'auto';
+  // Reload preview with new preference
+  _showPreview();
+}
+
+function setPreviewVisible(show){
+  if(!twitchContainer) return;
+  const on = !!show;
+  if(on){
+    _previewVisible = true;
+    twitchContainer.classList.remove('hidden');
+    _watchPreviewHeight();
+    _syncPreviewOffset();
+    // async load preview (local HLS first, Twitch fallback)
+    _showPreview();
+  } else {
+    _previewVisible = false;
+    _hidePreview();
+    _unwatchPreviewHeight();
+    _setChatPreviewOffset(0);
+  }
+}
+
+setPreviewVisible(false);
 
 if(chatTab){
   chatTab.addEventListener('dblclick', (e) => {
     // Hindre tekstmarkering/standard handling ved dobbeltklikk
     try{ e.preventDefault(); e.stopPropagation(); }catch(_){ }
     try{ const sel = window.getSelection && window.getSelection(); if(sel && sel.removeAllRanges) sel.removeAllRanges(); }catch(_){ }
-    setTwitchPlayerVisible(!twitchPlayerVisible);
+    setPreviewVisible(!_previewVisible);
   });
 }
 

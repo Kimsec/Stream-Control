@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, session, redirect, url_for, request, send_from_directory
+from flask import Flask, render_template, jsonify, session, redirect, url_for, request, send_from_directory, make_response, abort
 from obsws_python import ReqClient
 from datetime import timedelta
 from dotenv import load_dotenv
@@ -32,6 +32,7 @@ TWITCH_REFRESH_TOKEN   = os.getenv("TWITCH_REFRESH_TOKEN", "")
 TWITCH_TOKENS_PATH     = os.getenv("TWITCH_TOKENS_PATH", os.path.join(os.path.dirname(__file__), "twitch_tokens.json"))
 
 LOGIN_PASSWORD         = os.getenv("LOGIN_PASSWORD")
+HLS_ROOT               = os.getenv("HLS_ROOT", "/tmp/hls")
 
 # --- Simple IP ban / login-attempt tracking ---
 BAN_MAX_ATTEMPTS       = int(os.getenv("BAN_MAX_ATTEMPTS", "3"))
@@ -614,6 +615,74 @@ def nginx_stop():
 def nginx_status():
     running = subprocess.run(["systemctl", "is-active", "--quiet", "nginx"]).returncode == 0
     return jsonify({"running": running})
+
+
+# --- Local preview (HLS pass-through via Flask) ---
+def _safe_hls_path(subpath: str) -> str:
+    # Constrain to HLS_ROOT and prevent directory traversal
+    # send_from_directory will also protect, but we ensure we only ever serve under HLS_ROOT
+    subpath = (subpath or '').lstrip('/')
+    base = os.path.abspath(HLS_ROOT)
+    full = os.path.abspath(os.path.join(base, subpath))
+    if not full.startswith(base + os.sep) and full != base:
+        raise FileNotFoundError('invalid path')
+    return full
+
+@app.get('/preview/list')
+@login_required
+def preview_list():
+    try:
+        live_dir = _safe_hls_path('live')
+        if not os.path.isdir(live_dir):
+            return jsonify({"playlists": []})
+        items = []
+        for name in os.listdir(live_dir):
+            if not name.endswith('.m3u8'):
+                continue
+            p = os.path.join(live_dir, name)
+            try:
+                st = os.stat(p)
+            except Exception:
+                continue
+            # keep even small files; client will probe contents
+            items.append((st.st_mtime, f"live/{name}"))
+        # newest first for convenience
+        items.sort(key=lambda x: x[0], reverse=True)
+        out = [path for _, path in items]
+        return jsonify({"playlists": out})
+    except Exception:
+        return jsonify({"playlists": []})
+
+@app.get('/preview/hls/<path:subpath>')
+@login_required
+def preview_hls(subpath: str):
+    """Serve HLS playlists and segments from HLS_ROOT.
+    Paths are resolved relative to HLS_ROOT and constrained to prevent traversal."""
+    try:
+        # Only allow under HLS_ROOT
+        # Use send_from_directory with directory=HLS_ROOT and file=subpath
+        # Set appropriate MIME types and disable caching
+        # Infer mimetype by extension
+        lower = subpath.lower()
+        if lower.endswith('.m3u8'):
+            mimetype = 'application/vnd.apple.mpegurl'
+        elif lower.endswith('.ts'):
+            mimetype = 'video/mp2t'
+        else:
+            mimetype = None  # let Flask guess
+
+        # Ensure path is safe; will raise if invalid
+        _safe_hls_path(subpath)
+        resp = send_from_directory(HLS_ROOT, subpath, mimetype=mimetype, conditional=True)
+        # No cache for live content
+        resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        resp.headers['Pragma'] = 'no-cache'
+        resp.headers['Expires'] = '0'
+        return resp
+    except FileNotFoundError:
+        return abort(404)
+    except Exception:
+        return abort(404)
 
 
 # --- Logs API & WebSocket ---

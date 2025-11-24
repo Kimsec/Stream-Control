@@ -5,12 +5,11 @@ pid /run/nginx.pid;
 load_module modules/ngx_rtmp_module.so;
 
 events {
-    worker_connections 768;
+    worker_connections 4096;
+    multi_accept on;
 }
 
 http {
-    resolver 1.1.1.1 9.9.9.9 ipv6=off valid=300s;
-    resolver_timeout 5s;
     sendfile on;
     tcp_nopush on;
     include /etc/nginx/mime.types;
@@ -20,6 +19,7 @@ http {
     access_log /var/log/nginx/access.log;
     include /etc/nginx/conf.d/*.conf;
     include /etc/nginx/sites-enabled/*;
+
 }
 
 # RTMP-server
@@ -27,10 +27,24 @@ rtmp {
     server {
         listen 1935;
         chunk_size 4096;
-
+        
         application live {
             live on;
             record off;
+            idle_streams off;
+            drop_idle_publisher 3s; 
+            push_reconnect 3s;
+            allow play 127.0.0.1;
+            allow play 192.168.25.0/24;
+            deny play all;
+
+            # HLS preview (pass-through)
+            hls on;
+            hls_path /dev/shm/hls;
+            hls_fragment 2s;
+            hls_playlist_length 4s;
+            hls_nested on;
+            hls_cleanup on;
 
             {% for ep in push_endpoints %}
             {% if ep.enabled %}

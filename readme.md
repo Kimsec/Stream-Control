@@ -148,7 +148,7 @@ Mini-PC | MINI_PC_USER, MINI_PC_IP, MAC_ADDRESS
 Twitch | TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, TWITCH_BROADCASTER_ID, TWITCH_OAUTH_TOKEN, TWITCH_REFRESH_TOKEN, TWITCH_TOKENS_PATH
 Raid | RAID_AUTO_STOP_ENABLED, RAID_AUTO_STOP_DELAY
 Chat Commands | TWITCH_ADMINS, STARTING_SCENE_NAME, BRB_SCENE_NAME
-Behavior | WAIT_FOR_STREAM_START, EXIT_WHEN_STREAM_ENDS, IDLE_WHEN_STREAM_ENDS
+Behavior | WAIT_FOR_STREAM_START, EXIT_WHEN_STREAM_ENDS, IDLE_WHEN_STREAM_ENDS, LIVE_SCENE_LOW_GRACE_SEC
 Overlay | ALERTS_BASE_URL
 
 Tokens are auto-refreshed and persisted.
@@ -185,6 +185,21 @@ Chat | Embedded Twitch chat
 Alerts | Sounds when visiting Website
 
 Toasts provide immediate feedback.
+
+### Embedded Twitch Player
+
+- Toggle a top Twitch player from the Chat tab by double‑clicking the Chat tab label.
+- The player loads edge‑to‑edge, starts muted with autoplay, and is layered above the chat.
+- Hiding the player fully unloads the iframe to stop audio and save bandwidth.
+- The correct channel is resolved automatically from `/twitch/channel_info` and cached for instant display.
+
+Note: Twitch requires the page’s hostname to be listed in the embed `parent` parameter; the template injects this automatically.
+
+### Viewer count (OBS tab)
+
+- While live, the OBS tab shows “Viewers: N”.
+- Polling is enabled only when streaming and stops when offline to minimize load.
+- Backend endpoint: `GET /twitch/stream_info` → `{ is_live, viewer_count, title, game_name, started_at }`.
 
 ---
 
@@ -268,6 +283,7 @@ Both `app.py` and `stream_guard.py` use the same token file (`twitch_tokens.json
 - stream_guard.py is read‑only: it loads the current access token to:
   - Subscribe to EventSub topics (raids, chat messages)
   - Send chat messages (Helix Chat API) for feedback / raid completion
+  - Read live stream info (Helix `streams`) exposed by `GET /twitch/stream_info` for the viewer counter
 Required scopes for full functionality (recommend granting when generating initial tokens):
 
 - user:read:chat

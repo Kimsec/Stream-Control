@@ -5,3 +5,6 @@ requests
 flask-sock
 simple-websocket
 aiohttp
+gunicorn
+gevent
+gevent-websocket
