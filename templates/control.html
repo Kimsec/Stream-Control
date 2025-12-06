@@ -41,11 +41,22 @@
         <div class="button-container">
             <p id="minipcStatus" class="status">Checking status...</p>
             <button id="turnOnBtn" onclick="turnOnMiniPC()">Turn On</button>
-            <button id="turnOffBtn" onclick="openPowerConfirm('shutdown')">Shutdown</button>
-            <button id="restartBtn" onclick="openPowerConfirm('restart')">Restart</button>
-            <button id="repairBtn" onclick="openRepairConfirm()">Repair Backend</button>
+            <button id="advancedBtn" type="button" aria-controls="advancedPanel" aria-expanded="false">Advanced</button>
+            <div id="advancedPanel" class="advanced-panel" aria-hidden="true">
+                <button id="turnOffBtn" onclick="openPowerConfirm('shutdown')">Shutdown</button>
+                <button id="restartBtn" onclick="openPowerConfirm('restart')">Restart</button>
+                <div class="bot-toggle-card" role="group" aria-label="Chatbot auto-start">
+                    <span class="bot-toggle-title">Chatbot</span>
+                    <label class="sg-switch" aria-label="Toggle chatbot auto-start">
+                        <input type="checkbox" id="chatbot-toggle">
+                        <span class="sg-switch__slider" aria-hidden="true"></span>
+                    </label>
+                </div>
+                <button id="repairBtn" onclick="openRepairConfirm()">Repair Backend</button>
+            </div>
             <button id="logsBtn" onclick="toggleLogsPanel()">Logs</button>
         </div>
+            
         <div id="logs-panel" class="logs-panel hidden" aria-label="Service logs">
             <div class="logs-header">
                 <div class="logs-service-wrap">
@@ -121,7 +132,7 @@
                 </div>
             </div>
                     <!-- Skjult seksjon for restream-opsjoner -->
-            <div id="restreamOptions" style="display:none; margin-top:20px; text-align:left;">
+            <div id="restreamOptions" style="margin-top:20px; text-align:left;">
     <h3 class="restream-heading">Platforms:</h3>
     <span id="platformsHelpWrapper" class="tooltip">
         <button id="platformsHelp" class="tooltip-button" aria-haspopup="true" aria-expanded="false" title="RTMP format help" type="button">

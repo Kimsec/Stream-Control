@@ -33,6 +33,7 @@ TWITCH_TOKENS_PATH     = os.getenv("TWITCH_TOKENS_PATH", os.path.join(os.path.di
 
 LOGIN_PASSWORD         = os.getenv("LOGIN_PASSWORD")
 HLS_ROOT               = os.getenv("HLS_ROOT", "/tmp/hls")
+CHATBOT_PREF_PATH      = os.getenv("CHATBOT_PREF_PATH", os.path.join(os.path.dirname(__file__), "chatbot_autostart.json"))
 
 # --- Simple IP ban / login-attempt tracking ---
 BAN_MAX_ATTEMPTS       = int(os.getenv("BAN_MAX_ATTEMPTS", "3"))
@@ -75,6 +76,39 @@ def _save_ban_file():
         pass
 
 _load_ban_file()
+
+_chatbot_pref_lock = Lock()
+_chatbot_autostart_enabled = True
+
+def _load_chatbot_pref_file():
+    global _chatbot_autostart_enabled
+    with _chatbot_pref_lock:
+        try:
+            with open(CHATBOT_PREF_PATH, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            _chatbot_autostart_enabled = bool(data.get('enabled', True))
+        except Exception:
+            _chatbot_autostart_enabled = True
+
+def _persist_chatbot_pref(value: bool):
+    global _chatbot_autostart_enabled
+    with _chatbot_pref_lock:
+        _chatbot_autostart_enabled = bool(value)
+        try:
+            with open(CHATBOT_PREF_PATH, 'w', encoding='utf-8') as f:
+                json.dump({'enabled': _chatbot_autostart_enabled}, f, indent=2)
+            try:
+                os.chmod(CHATBOT_PREF_PATH, 0o600)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+def _get_chatbot_pref() -> bool:
+    with _chatbot_pref_lock:
+        return _chatbot_autostart_enabled
+
+_load_chatbot_pref_file()
 
 def _client_ip() -> str:
     # Cloudflare tunnel: prefer CF-Connecting-IP header
@@ -591,6 +625,22 @@ def bot_status():
     return jsonify({"running": running})
 
 
+@app.route('/api/chatbot_autostart', methods=['GET'])
+@login_required
+def get_chatbot_autostart():
+    return jsonify({"enabled": _get_chatbot_pref()})
+
+
+@app.route('/api/chatbot_autostart', methods=['POST'])
+@login_required
+def set_chatbot_autostart():
+    payload = request.get_json(silent=True) or {}
+    if 'enabled' not in payload or not isinstance(payload['enabled'], bool):
+        return jsonify({"error": "enabled must be boolean"}), 400
+    _persist_chatbot_pref(payload['enabled'])
+    return jsonify({"enabled": payload['enabled']})
+
+
 # --- Nginx via systemd ---
 @app.route('/nginx/start', methods=['POST'])
 @login_required
@@ -960,6 +1010,7 @@ def sg_status():
     except Exception:
         chatbot_state = 'error'
     base['chatbot_state'] = chatbot_state
+    base['chatbot_autostart'] = _get_chatbot_pref()
 
     # Nginx systemd state classification
     nginx_state = 'offline'

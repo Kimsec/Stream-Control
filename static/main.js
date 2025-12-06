@@ -1,5 +1,94 @@
 document.getElementById("year").textContent = new Date().getFullYear();
 let lastStreaming = null;
+const chatbotToggleEl = document.getElementById('chatbot-toggle');
+const advancedBtn = document.getElementById('advancedBtn');
+const advancedPanelEl = document.getElementById('advancedPanel');
+let _chatbotAutoStartEnabled = true;
+let _chatbotPrefHoldUntil = 0;
+let _isStreamingLive = false;
+let _advancedPanelVisible = false;
+
+function _setAdvancedPanelVisibility(show){
+  _advancedPanelVisible = !!show;
+  if(advancedPanelEl){
+    if(_advancedPanelVisible){
+      advancedPanelEl.classList.add('expanded');
+      const targetHeight = advancedPanelEl.scrollHeight;
+      advancedPanelEl.style.maxHeight = targetHeight + 'px';
+      requestAnimationFrame(()=>{
+        advancedPanelEl.style.opacity = '1';
+      });
+    } else {
+      const currentHeight = advancedPanelEl.scrollHeight;
+      advancedPanelEl.style.maxHeight = currentHeight + 'px';
+      requestAnimationFrame(()=>{
+        advancedPanelEl.classList.remove('expanded');
+        advancedPanelEl.style.maxHeight = '0px';
+        advancedPanelEl.style.opacity = '0';
+      });
+    }
+    advancedPanelEl.setAttribute('aria-hidden', _advancedPanelVisible ? 'false' : 'true');
+  }
+  if(advancedBtn){
+    advancedBtn.setAttribute('aria-expanded', _advancedPanelVisible ? 'true' : 'false');
+  }
+}
+
+if(advancedBtn && advancedPanelEl){
+  _setAdvancedPanelVisibility(false);
+  advancedBtn.addEventListener('click', () => {
+    _setAdvancedPanelVisibility(!_advancedPanelVisible);
+  });
+}
+
+function _syncChatbotToggleUI(){
+  if(chatbotToggleEl){
+    chatbotToggleEl.checked = !!_chatbotAutoStartEnabled;
+  }
+}
+
+function _persistChatbotAutoStart(enabled){
+  return fetch('/api/chatbot_autostart', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled: !!enabled })
+  });
+}
+
+function _startChatbot(){
+  return fetch('/bot/start', { method: 'POST' }).catch(()=>{});
+}
+
+function _stopChatbot(){
+  return fetch('/bot/stop', { method: 'POST' }).catch(()=>{});
+}
+
+function _handleChatbotToggleChange(enabled){
+  _chatbotAutoStartEnabled = !!enabled;
+  _chatbotPrefHoldUntil = Date.now() + 2000;
+  _syncChatbotToggleUI();
+  _persistChatbotAutoStart(_chatbotAutoStartEnabled).catch(()=>{});
+  if(!_chatbotAutoStartEnabled){
+    _stopChatbot();
+  } else if (_isStreamingLive) {
+    _startChatbot();
+  }
+}
+
+if(chatbotToggleEl){
+  chatbotToggleEl.addEventListener('change', (ev) => {
+    _handleChatbotToggleChange(ev.target.checked);
+  });
+  fetch('/api/chatbot_autostart')
+    .then(r => r.ok ? r.json() : Promise.reject())
+    .then(js => {
+      if(typeof js.enabled === 'boolean' && Date.now() > _chatbotPrefHoldUntil){
+        _chatbotAutoStartEnabled = js.enabled;
+        _syncChatbotToggleUI();
+      }
+    })
+    .catch(()=>{});
+}
 // Enkel cache for channel info (title/category) for raskere UX
 let _channelInfoCache = { data: null, ts: 0 };
 const CHANNEL_INFO_TTL_MS = 300_000; // 5 min (mindre hyppig refresh)
@@ -293,12 +382,16 @@ function checkStreamStatus() {
 
       // --- EDGE-TRIGGER: kun ved faktisk endring ---
       const isStreamingNow = !!data.isStreaming;
+      _isStreamingLive = isStreamingNow;
       if (lastStreaming === null) {
         // første måling: sett baseline
         lastStreaming = isStreamingNow;
       } else if (isStreamingNow !== lastStreaming) {
-        // overgang OFF->ON = start bot, ON->OFF = stopp bot
-        fetch(isStreamingNow ? '/bot/start' : '/bot/stop', { method: 'POST' }).catch(()=>{});
+        if (isStreamingNow) {
+          if (_chatbotAutoStartEnabled) _startChatbot();
+        } else {
+          _stopChatbot();
+        }
         lastStreaming = isStreamingNow;
       }
 
@@ -523,11 +616,54 @@ const saveRestreamBtn  = document.getElementById('saveRestream');
 const cancelRestreamBtn= document.getElementById('cancelRestream');
 const addEndpointBtn    = document.getElementById('addEndpoint');
 
+if(restreamOptions){
+  restreamOptions.setAttribute('aria-hidden','true');
+  restreamOptions.style.maxHeight = '0px';
+  restreamOptions.style.opacity = '0';
+}
+if(restreamBtn){
+  restreamBtn.setAttribute('aria-expanded','false');
+}
+
+function _refreshRestreamPanelHeight(){
+  if(restreamOptions && restreamOptions.classList.contains('restream-open')){
+    restreamOptions.style.maxHeight = restreamOptions.scrollHeight + 'px';
+  }
+}
+
+function _openRestreamPanel(){
+  if(!restreamOptions) return;
+  restreamOptions.classList.add('restream-open');
+  restreamOptions.setAttribute('aria-hidden','false');
+  requestAnimationFrame(()=>{
+    restreamOptions.style.maxHeight = restreamOptions.scrollHeight + 'px';
+    restreamOptions.style.opacity = '1';
+  });
+  if(restreamBtn){
+    restreamBtn.style.display = 'none';
+    restreamBtn.setAttribute('aria-expanded','true');
+  }
+}
+
+function _closeRestreamPanel(){
+  if(!restreamOptions) return;
+  restreamOptions.setAttribute('aria-hidden','true');
+  const currentHeight = restreamOptions.scrollHeight;
+  restreamOptions.style.maxHeight = currentHeight + 'px';
+  requestAnimationFrame(()=>{
+    restreamOptions.classList.remove('restream-open');
+    restreamOptions.style.maxHeight = '0px';
+    restreamOptions.style.opacity = '0';
+  });
+  if(restreamBtn){
+    restreamBtn.style.display = 'inline-block';
+    restreamBtn.setAttribute('aria-expanded','false');
+  }
+}
+
 // Vis/restre restream-panel
 restreamBtn.addEventListener('click', () => {
-  restreamOptions.style.display = 'block';
-  // Skjul selve knappen for å matche oppførsel til Raid/Title
-  restreamBtn.style.display = 'none';
+  _openRestreamPanel();
     fetch('/rtmp_endpoints.json')
         .then(r => r.json())
         .then(data => {
@@ -600,6 +736,7 @@ restreamBtn.addEventListener('click', () => {
 
                 endpointsList.appendChild(div);
             });
+              _refreshRestreamPanelHeight();
         })
         .catch(console.error);
 });
@@ -669,6 +806,7 @@ addEndpointBtn.addEventListener('click', () => {
     div.appendChild(deleteButton);
 
     endpointsList.appendChild(div);
+    _refreshRestreamPanelHeight();
 });
 
 // Lagre-endepunkter (bruk klasser, ikke nth-child)
@@ -689,8 +827,7 @@ saveRestreamBtn.addEventListener('click', () => {
     .then(resp => {
         if (resp.status === 'ok') {
       showToast('Restream settings saved!','success');
-            restreamOptions.style.display = 'none';
-            restreamBtn.style.display = 'inline-block';
+            _closeRestreamPanel();
         } else {
       showToast('Error: ' + (resp.error || JSON.stringify(resp)),'error');
         }
@@ -700,8 +837,7 @@ saveRestreamBtn.addEventListener('click', () => {
 
 // Skjul ved Avbryt
 cancelRestreamBtn.addEventListener('click', () => {
-    restreamOptions.style.display = 'none';
-  restreamBtn.style.display = 'inline-block';
+    _closeRestreamPanel();
 });
 
 // Tooltip toggle for Platforms help
@@ -753,6 +889,10 @@ function stopStream() {
       const r = await fetch('/api/sg_status');
       if(!r.ok) throw 0;
       const j = await r.json();
+      if(typeof j.chatbot_autostart === 'boolean' && Date.now() > _chatbotPrefHoldUntil){
+        _chatbotAutoStartEnabled = j.chatbot_autostart;
+        _syncChatbotToggleUI();
+      }
       // Chatbot mapping
       upd('hc-chatbot', j.chatbot_state || 'offline', j.chatbot_state);
       // Nginx mapping
@@ -1072,6 +1212,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if(_endpointPendingDelete && _endpointPendingDelete.parentElement){
         _endpointPendingDelete.parentElement.removeChild(_endpointPendingDelete);
         showToast('Endpoint deleted','success');
+        _refreshRestreamPanelHeight();
       }
       closeDeleteEndpointModal();
     });
