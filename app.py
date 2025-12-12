@@ -895,7 +895,8 @@ _TOKENS = {
     "refresh": TWITCH_REFRESH_TOKEN or ""
 }
 _token_lock = Lock()
-_TOKEN_REFRESH_THRESHOLD = 24 * 3600  # refresh if <24h left
+_stop_token_maint = Event()  # Event to signal token maintenance thread to stop
+_TOKEN_REFRESH_THRESHOLD = 3600  # refresh if <1h left (Twitch tokens expire after ~4h)
 
 def _load_tokens_file():
     try:
@@ -968,9 +969,24 @@ def ensure_user_token() -> str:
                 pass
         return _TOKENS.get("access", "")
 
+def _token_maintenance_loop():
+    """Background thread that keeps token fresh even without HTTP traffic"""
+    while not _stop_token_maint.is_set():
+        try:
+            ensure_user_token()
+        except Exception:
+            pass
+        # Wake every 30 minutes
+        _stop_token_maint.wait(1800)
+
 _load_tokens_file()
 
-# Token refresh happens on-demand in ensure_user_token() - no background thread needed
+# Start token maintenance thread
+Thread(target=_token_maintenance_loop, daemon=True, name="token-maint").start()
+
+# Ensure background thread gets a stop signal on shutdown
+import atexit
+atexit.register(lambda: _stop_token_maint.set())
 
 
 @app.route("/api/sg_status")
