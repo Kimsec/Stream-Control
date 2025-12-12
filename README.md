@@ -3,6 +3,12 @@
 </p>
 
 <h1 align="center">Stream Control & Stream Guard</h1>
+
+<p align="center">
+  <strong>Your streaming Swiss Army knife 🎬</strong><br>
+  One dashboard to control everything - OBS, Twitch, alerts, restream and your remote stream PC.
+</p>
+
 <br><p align="center" width="100%">
 <a href="https://www.buymeacoffee.com/kimsec">
 <img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&amp;emoji=%E2%98%95&amp;slug=kimsec&amp;button_colour=FFDD00&amp;font_colour=000000&amp;font_family=Inter&amp;outline_colour=000000&amp;coffee_colour=ffffff" alt="Buy Me A Coffee"></a></p>
@@ -13,10 +19,6 @@
   <img src="https://img.shields.io/badge/Platform-Self%20Hosted-success" alt="Self Hosted"></a>
   <a href="https://www.buymeacoffee.com/kimsec">
   <img src="https://img.shields.io/badge/Support-By%20donation-FFDD00?logo=buymeacoffee&logoColor=000" alt="Support"></a>
-</p>
-
-<p align="center">
-A unified streaming control panel that centralizes Twitch management, OBS scene automation, bitrate failover, raid auto-stop, admin chat commands, BELABOX + restream endpoints settings, alert sounds, chat viewing, and remote stream PC control—built to keep a flaky connection stable and reactive from one dashboard.
 </p>
 
 ---
@@ -46,36 +48,49 @@ A unified streaming control panel that centralizes Twitch management, OBS scene 
 
 ---
 
-## Overview
+## 🚀 What is This?
 
-Stream-Control consists of:
+Ever tried managing a stream while your internet decides to have a bad day? Stream Control has your back.
 
-1. A Flask-based control panel (web dashboard).
-2. A companion background process (Stream Guard) that:
-   - Monitors bitrate via a stats endpoint (e.g. SRS / SLS / nginx module JSON)
-   - Switches scenes automatically (LIVE <-> lowbitrate)
-   - Listens for Twitch outgoing raids (EventSub WebSocket) and can stop the stream
-   - Exposes a local health JSON polled by the panel
-3. An overlay alert channel (WebSocket) for visual/audio notifications (e.g. low bitrate).
+**In simple terms**: A web dashboard that keeps your Twitch stream running smoothly - even when your connection isn't. It automatically switches to a "low bitrate" scene when your internet struggles, manages your restream destinations, and lets you control everything from one place.
 
-No database—simple JSON + environment variables.
+**Perfect for**:
+- 📡 Streamers with unstable internet
+- 🎮 Mobile/IRL streamers using BELABOX or similar encoders
+- 🔧 Anyone who wants full control without clicking through 5 different apps
+- 🌍 Multi-platform streamers managing multiple restream endpoints
 
 ---
 
-## Features
+## ✨ What Can It Do?
 
-- OBS start/stop + scene switching.
-- Twitch title & category update with live search.
-- Outgoing raid trigger.
-- Automatic bitrate-based fallback & recovery scene logic.
-- Automatic Twitch user token maintenance (refresh & persistence).
-- EventSub (channel.raid) with reconnect + revocation recovery + resubscribe.
-- Restream editor (writes JSON, regenerates nginx push config, auto reload).
-- Wake-on-LAN / restart / shutdown for remote Mini-PC.
-- Optional systemd chatbot control.
-- Overlay alert push (low / restored).
-- Health/status indicators (OBS, raid WS, subscription, token, etc.).
-- Chat commands (!start, !live, !brb, !fix, !stop) via EventSub chat messages (admins only, case sensitive).
+### 🎛️ Stream Management
+- **One-click OBS control** - Start/stop streaming, switch scenes
+- **Auto scene switching** - Detects low bitrate and switches to fallback scene automatically
+- **Twitch integration** - Update title/category, trigger raids, view live chat
+- **Smart alerts** - Audio notifications when things go wrong (or right!)
+- **Alerts from StreamElements** - Get notified with your alert sound when triggered by dono/subs etc 
+
+### 🌐 Multi-Platform Streaming
+- **Restream manager** - Add/edit/enable/disable all your streaming destinations
+- **BELABOX integration** - Direct control of your mobile streaming setup
+- **Auto-reload** - Changes to restream config automatically reload nginx
+
+### 💻 Remote Control
+- **Wake-on-LAN** - Turn on your streaming PC from anywhere
+- **Power management** - Restart or shutdown your remote stream PC
+- **Health monitoring** - See status of all services at a glance
+
+### 🤖 Automation
+- **Auto raid-stop** - Automatically end stream after raiding another channel
+- **Token refresh** - Twitch tokens refresh automatically, no manual intervention
+- **Chat commands** - Control your stream via Twitch chat (!start, !live, !brb, !stop)
+- **Bitrate monitoring** - Constantly checks your connection quality
+
+### 🔒 Security & Production
+- **Password protected** - Secure login with hashed passwords
+- **IP banning** - Automatic protection against brute force attempts
+- **Production-ready** - Runs with Gunicorn behind Cloudflare Tunnel
 
 ---
 
@@ -93,35 +108,53 @@ Processes are decoupled for resilience.
 
 ---
 
-## Quick Start
+## 🏃 Quick Start
+
+Get up and running in 5 minutes:
 
 ```bash
+# 1. Clone and setup
+git clone https://github.com/Kimsec/Stream-Control.git
+cd Stream-Control
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+
+# 2. Configure
 cp .env.example .env
-# Edit .env
-python app.py
+nano .env  # Add your credentials
+
+# 3. Generate secure password
+python generate_password_hash.py
+# Add the hash to .env as LOGIN_PASSWORD_HASH
+
+# 4. Run (development)
+python app.py --dev
 python stream_guard.py
 ```
 
-Open <http://localhost:5000> (login with LOGIN_PASSWORD).
+Open http://localhost:5000 and start streaming! 🎉
 
 ---
 
-## Prerequisites
+## 📋 What You Need
 
-- Python 3.10+
-- OBS with obs-websocket v5
-- nginx with RTMP module (if restreaming)
-- Stats endpoint (for bitrate switching)
-- Twitch API credentials (Client ID + Secret + user tokens)
-- Optional: stunnel (RTMPS), systemd
+**Required:**
+- 🐍 Python 3.10 or newer
+- 🎥 OBS Studio
+- 🔑 Twitch API credentials ([get them here](https://dev.twitch.tv/console/apps))
+
+**Optional (but recommended):**
+- 📡 nginx with RTMP module (for restreaming to multiple platforms)
+- 📊 Stats endpoint (SRS/SLS/nginx stats for bitrate monitoring)
+- 🔒 stunnel (for RTMPS support)
+- ⚙️ systemd (for running as a service)
 
 ---
 
-## Installation
+## 💾 Installation
 
+### For Development
 ```bash
 git clone https://github.com/Kimsec/Stream-Control.git
 cd Stream-Control
@@ -130,6 +163,14 @@ source venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 ```
+
+### For Production (Ubuntu/Debian)
+See [DEPLOYMENT.md](DEPLOYMENT.md) for a complete production setup guide with:
+- ✅ Gunicorn with threaded workers
+- ✅ Systemd service installation
+- ✅ Secure password hashing
+- ✅ Cloudflare Tunnel integration
+- ✅ Log rotation and monitoring
 
 ---
 
