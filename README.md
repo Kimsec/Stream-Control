@@ -367,7 +367,7 @@ If a token is revoked or expires, app.py refresh logic updates the file; guard d
 
 
 ## Alert Sound
-
+- Alerts from streamElements
 - Alerts when low bitrate / Connection restored (TTS on website)
 - Send: `POST /api/alert` `{ "type": "low"|"restored", "message": "..." }`
 - Transport: WebSocket (stateless; waits for next event)
@@ -488,14 +488,9 @@ Check logs for both processes first.
 ## Extending
 
 Ideas:
-
-- HTTP Security headers (CSP, HSTS, Referrer-Policy)
-- “Grace window” by the start (ignore first X sec because of unstable output).
-- UI Timeline for logs (behind a button)
-- Watchdog thread: if main loop stalls > timeout → process exit (systemd restarter)
-- Async HTTP
 - More metrics
 - Role-based access
+- Come with suggestions
 
 ---
 
