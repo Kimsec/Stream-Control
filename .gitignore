@@ -1,0 +1,34 @@
+
+# Secrets / local config (do not commit)
+.env
+.env.*
+!.env.example
+
+# Token and endpoint data (can contain secrets)
+twitch_tokens.json
+rtmp_endpoints.json
+
+# Runtime data (contains user state/bans)
+bans.json
+chatbot_autostart.json
+
+# Logs
+logs/
+*.log
+*.log.*
+
+# Python
+__pycache__/
+*.pyc
+
+# Virtualenv
+venv/
+.venv/
+
+.claude/
+.vscode/
+
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/

@@ -1,0 +1,39 @@
+[Unit]
+Description=Stream Control Web Server (Gunicorn + WebSocket)
+After=network.target
+Documentation=https://github.com/kimsec/stream-control
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/home/<user>/stream-control
+EnvironmentFile=/home/<user>/stream-control/.env
+
+# Main Gunicorn command with WebSocket-capable worker
+# Uses wsgi.py entrypoint (does gevent monkey patching before app import)
+ExecStart=/home/<user>/stream-control/venv/bin/gunicorn \
+    --config /home/<user>/stream-control/gunicorn.conf.py \
+    wsgi:app
+
+# Graceful reload on HUP signal
+ExecReload=/bin/kill -s HUP $MAINPID
+
+# Restart policy
+Restart=always
+RestartSec=5
+
+# Security hardening (adjust as needed for your sudo requirements)
+NoNewPrivileges=false
+PrivateTmp=true
+
+# Resource limits
+LimitNOFILE=65536
+
+# Standard output/error logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=stream-control
+
+[Install]
+WantedBy=multi-user.target

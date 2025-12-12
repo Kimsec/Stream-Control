@@ -1,0 +1,12 @@
+/var/log/stream-control/access.log {
+    size 10M
+    rotate 5
+    compress
+    delaycompress
+    notifempty
+    missingok
+    create 0644 root root
+    postrotate
+        systemctl reload stream-control > /dev/null 2>&1 || true
+    endscript
+}

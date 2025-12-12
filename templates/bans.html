@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<link rel="apple-touch-icon" sizes="192x192" href="https://kimsec.net/download/caxyhh/icon-192.png">
+<link rel="icon" type="image/png" href="https://kimsec.net/download/caxyhh/icon_logo.png" />
+<link rel="manifest" href="https://kimsec.net/download/caxyhh/manifest.json">
+<title>IP Bans</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+body{background:#000;color:#eee;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;padding:24px;}
+h1{margin-top:0;font-size:28px;font-weight:600;letter-spacing:.5px;}
+.table{width:100%;border-collapse:collapse;margin-top:16px;}
+.table th,.table td{padding:10px 12px;text-align:left;font-size:14px;border-bottom:1px solid #1e1e1e;vertical-align:top;}
+.table th{background:#111;font-weight:600;letter-spacing:.5px;}
+.table tbody tr:hover td{background:#161616;}
+.badge{display:inline-block;background:#1f1f1f;padding:4px 8px;border-radius:8px;font-size:12px;margin:2px 4px 2px 0;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.btn{background:#222;border:1px solid #333;color:#eee;padding:8px 16px;border-radius:10px;cursor:pointer;font-size:14px;}
+.btn:hover{background:#2e2e2e;}
+.btn.danger{background:#451a1a;border-color:#5a2323;}
+.btn.danger:hover{background:#5a2323;}
+.empty{opacity:.6;margin-top:28px;}
+.small{font-size:12px;opacity:.7;}
+.header-actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:8px;}
+.filter-box{background:#111;border:1px solid #262626;border-radius:8px;padding:6px 10px;color:#eee;}
+a.back{color:#8d5cff;text-decoration:none;}
+a.back:hover{text-decoration:underline;}
+</style>
+</head>
+<body>
+  <a href="/" class="back">← Back</a>
+  <h1>IP Bans</h1>
+  <div class="header-actions">
+    <input type="text" id="filter" class="filter-box" placeholder="Filter IP / reason / UA" />
+    <button class="btn" onclick="reloadBans()">Reload</button>
+  </div>
+  <div id="banSummary" class="small" style="margin-top:6px;">Loading…</div>
+  <table class="table" id="bansTable" style="display:none;">
+    <thead>
+      <tr>
+        <th>IP</th>
+        <th>Reason</th>
+        <th>When</th>
+        <th>User-Agents</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody id="bansBody"></tbody>
+  </table>
+  <div id="empty" class="empty" style="display:none;">No banned IPs.</div>
+<script>
+async function fetchJSON(url, opts){
+  const r = await fetch(url, opts); if(!r.ok) throw new Error(await r.text()); return r.json();
+}
+function fmtTime(ts){
+  try{const d=new Date(ts*1000);return d.toLocaleString();}catch(e){return ts+'';}
+}
+let bansData = {};
+async function reloadBans(){
+  document.getElementById('banSummary').textContent = 'Loading…';
+  try{
+    const data = await fetchJSON('/api/bans');
+    bansData = data.bans || {};
+    render();
+  }catch(e){
+    document.getElementById('banSummary').textContent = 'Error loading: '+e.message;
+  }
+}
+function render(){
+  const body = document.getElementById('bansBody');
+  body.innerHTML='';
+  const filter = document.getElementById('filter').value.trim().toLowerCase();
+  const entries = Object.entries(bansData);
+  if(!entries.length){
+    document.getElementById('bansTable').style.display='none';
+    document.getElementById('empty').style.display='block';
+    document.getElementById('banSummary').textContent = '0 bans';
+    return;
+  }
+  let shown=0;
+  for(const [ip, rec] of entries){
+    const reason = (rec.reason||'').toString();
+    const agents = rec.agents||[];
+  // attempts not displayed anymore
+    const banned_ts = rec.banned_ts || 0;
+    const hay = (ip+' '+reason+' '+agents.join(' ')).toLowerCase();
+    if(filter && !hay.includes(filter)) continue;
+    shown++;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td style=\"font-weight:600;\">${ip}</td>
+      <td>${reason}</td>
+      <td>${fmtTime(banned_ts)}</td>
+      <td>${agents.map(a=>`<span class=badge title=\"${a.replace(/\\"/g,'&quot;')}\">${a.slice(0,38)}</span>`).join('')}</td>
+      <td><button class=\"btn danger\" onclick=\"unban('${ip}')\">Unban</button></td>`;
+    body.appendChild(tr);
+  }
+  document.getElementById('bansTable').style.display = shown? 'table':'none';
+  document.getElementById('empty').style.display = shown? 'none':'block';
+  document.getElementById('banSummary').textContent = `${Object.keys(bansData).length} bans (showing ${shown})`;
+}
+async function unban(ip){
+  if(!confirm('Unban '+ip+'?')) return;
+  try{
+    const r = await fetchJSON('/api/unban',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ip})});
+    if(r.ok){
+      delete bansData[ip];
+      render();
+    }else{
+      alert('Failed to unban');
+    }
+  }catch(e){ alert('Error: '+e.message); }
+}
+document.getElementById('filter').addEventListener('input', render);
+reloadBans();
+</script>
+</body>
+</html>

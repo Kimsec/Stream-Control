@@ -1,0 +1,52 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Alert Overlay</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
+<body>
+  <audio id="aud-low" src="/static/sounds/low.m4a" preload="auto" playsinline></audio>
+  <audio id="aud-restored" src="/static/sounds/restored.m4a" preload="auto" playsinline></audio>
+  <script>
+    const low = document.getElementById('aud-low');
+    const restored = document.getElementById('aud-restored');
+
+    // unlock when parent sends the message
+    function prime(aud) {
+      aud.muted = true;
+      return aud.play().finally(() => { try { aud.pause(); } catch {} aud.currentTime = 0; aud.muted = false; });
+    }
+    function unlockAudio() {
+      Promise.allSettled([prime(low), prime(restored)]).catch(()=>{});
+    }
+    window.addEventListener('message', (ev) => {
+      const d = ev.data;
+      if (d === 'play' || (d && d.type === 'unlock-audio')) unlockAudio();
+    });
+
+    function playAlert(type) {
+      try { low.pause(); low.currentTime = 0; low.load(); } catch {}
+      try { restored.pause(); restored.currentTime = 0; restored.load(); } catch {}
+      const aud = type === 'low' ? low : restored;
+      const p = aud.play();
+      if (p && typeof p.then === 'function') p.catch(()=>{});
+    }
+
+    function connect() {
+      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+      const ws = new WebSocket(`${proto}://${location.host}/ws/alerts`);
+      ws.onmessage = (ev) => {
+        try {
+          const data = JSON.parse(ev.data || '{}');
+          const t = (data.type || '').toLowerCase();
+          if (t === 'low' || t === 'restored') playAlert(t);
+        } catch {}
+      };
+      ws.onclose = () => setTimeout(connect, 1500);
+      ws.onerror = () => { try { ws.close(); } catch {} };
+    }
+    connect();
+  </script>
+</body>
+</html>

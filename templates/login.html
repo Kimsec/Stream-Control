@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="apple-touch-icon" sizes="192x192" href="https://kimsec.net/download/caxyhh/icon-192.png">
+    <link rel="icon" type="image/png" href="https://kimsec.net/download/caxyhh/icon_logo.png" />
+    <link rel="manifest" href="https://kimsec.net/download/caxyhh/manifest.json">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" />
+    <title>Password Required</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; }
+        body {
+            background: linear-gradient(135deg, #4b0082, #000000);
+            color: white;
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            width: 100%;
+            max-width: 400px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        }
+        img {
+            width: 120px;
+            height: auto;
+            margin-bottom: 20px;
+        }
+        h1 {
+            font-size: 36px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        p {
+            font-size: 16px;
+            text-align: center;
+            line-height: 1.5;
+            margin: 10px 0;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+        input[type="password"], button {
+            font-size: 18px;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 10px;
+            border: none;
+            width: 100%;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+        input[type="password"] {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            text-align: center;
+        }
+        input[type="password"]::placeholder {
+            color: #ccc;
+        }
+        button {
+            background: #81029b;
+            color: white;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #a50fcf;
+        }
+        footer {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 14px;
+            color: #ccc;
+        }
+        .text-danger,
+        .heart-icon {
+        color: #ff3b3b;
+        }
+    </style>
+</head>
+<body>
+    <div class="content">
+        <img src="https://kimsec.net/download/caxyhh/icon_logo.png" alt="Logo" />
+        {% if not banned %}
+            <h1>Stream Control</h1>
+        {% endif %}
+        {% if error %}
+            <p style="color: red;">{{ error }}</p>
+        {% endif %}
+        {% if banned %}
+            <p>Your IP is blocked. Please contact admin to restore access.</p>
+        {% else %}
+            <form method="post" action="{{ url_for('login') }}" id="loginForm">
+                <input type="password" name="password" placeholder="Enter password" id="passwordInput" autocomplete="current-password">
+                <button type="submit">Login</button>
+            </form>
+        {% endif %}
+    </div>
+
+    <footer class="site-footer">
+        © <span id="year"></span> All Rights Reserved. Made with
+        <i class="fa-solid fa-heart heart-icon" aria-hidden="true"></i> by Kim AH
+    </footer>
+    </footer>
+    <script>
+        document.getElementById("year").textContent = new Date().getFullYear();
+        const pwd = document.getElementById("passwordInput");
+        if(pwd){
+            pwd.addEventListener("keyup", function(event) {
+                if (event.key === "Enter") {
+                    event.preventDefault();
+                    this.form.submit();
+                }
+            });
+            try{pwd.focus();}catch(e){}
+        }
+    </script>
+</body>
+</html>

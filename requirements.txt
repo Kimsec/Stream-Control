@@ -1,0 +1,9 @@
+Flask>=2.3.0
+werkzeug>=2.3.0
+obsws-python
+python-dotenv
+requests
+flask-sock
+simple-websocket
+aiohttp
+gunicorn
