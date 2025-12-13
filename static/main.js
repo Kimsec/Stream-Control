@@ -639,13 +639,14 @@ function _openRestreamPanel(){
 function _closeRestreamPanel(){
   if(!restreamOptions) return;
   restreamOptions.setAttribute('aria-hidden','true');
-  const currentHeight = restreamOptions.scrollHeight;
-  restreamOptions.style.maxHeight = currentHeight + 'px';
-  requestAnimationFrame(()=>{
-    restreamOptions.classList.remove('restream-open');
-    restreamOptions.style.maxHeight = '0px';
-    restreamOptions.style.opacity = '0';
-  });
+  const prevTransition = restreamOptions.style.transition;
+  restreamOptions.style.transition = 'none';
+  void restreamOptions.offsetHeight;
+  restreamOptions.classList.remove('restream-open');
+  restreamOptions.style.maxHeight = '0px';
+  restreamOptions.style.opacity = '0';
+  void restreamOptions.offsetHeight;
+  restreamOptions.style.transition = prevTransition;
   if(restreamBtn){
     restreamBtn.style.display = 'inline-block';
     restreamBtn.setAttribute('aria-expanded','false');

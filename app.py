@@ -32,7 +32,7 @@ OBS_PORT               = int(os.getenv("OBS_PORT"))
 OBS_PASSWORD           = os.getenv("OBS_PASSWORD")
 
 TWITCH_CLIENT_ID       = os.getenv("TWITCH_CLIENT_ID")
-TWITCH_OAUTH_TOKEN     = os.getenv("TWITCH_OAUTH_TOKEN")          # initial access token (kan bli oppdatert)
+TWITCH_OAUTH_TOKEN     = os.getenv("TWITCH_OAUTH_TOKEN")
 TWITCH_BROADCASTER_ID  = os.getenv("TWITCH_BROADCASTER_ID")
 TWITCH_CLIENT_SECRET   = os.getenv("TWITCH_CLIENT_SECRET")
 TWITCH_REFRESH_TOKEN   = os.getenv("TWITCH_REFRESH_TOKEN", "")
@@ -42,7 +42,7 @@ LOGIN_PASSWORD_HASH    = os.getenv("LOGIN_PASSWORD_HASH")
 HLS_ROOT               = os.getenv("HLS_ROOT", "/tmp/hls")
 CHATBOT_PREF_PATH      = os.getenv("CHATBOT_PREF_PATH", os.path.join(os.path.dirname(__file__), "chatbot_autostart.json"))
 
-# --- Simple IP ban / login-attempt tracking ---
+
 BAN_MAX_ATTEMPTS       = int(os.getenv("BAN_MAX_ATTEMPTS", "3"))
 BAN_DATA_PATH          = os.getenv("BAN_DATA_PATH", os.path.join(os.path.dirname(__file__), "bans.json"))
 _ban_lock = Lock()
