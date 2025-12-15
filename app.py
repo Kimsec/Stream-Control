@@ -3,6 +3,7 @@ from obsws_python import ReqClient
 from datetime import timedelta
 from dotenv import load_dotenv
 import os, subprocess, requests, json, time
+import fcntl
 from threading import Lock, Thread, Event  # added Thread & Event for token maint
 from ipaddress import ip_address
 from flask_sock import Sock
@@ -41,6 +42,12 @@ TWITCH_TOKENS_PATH     = os.getenv("TWITCH_TOKENS_PATH", os.path.join(os.path.di
 LOGIN_PASSWORD_HASH    = os.getenv("LOGIN_PASSWORD_HASH")
 HLS_ROOT               = os.getenv("HLS_ROOT", "/tmp/hls")
 CHATBOT_PREF_PATH      = os.getenv("CHATBOT_PREF_PATH", os.path.join(os.path.dirname(__file__), "chatbot_autostart.json"))
+
+# Chatbot moderation (add-only via Stream-Control UI)
+CHATBOT_BANNED_WORDS_PATH = os.getenv(
+    "CHATBOT_BANNED_WORDS_PATH",
+    "/home/kim3k/chatbot/banned_words.txt",
+)
 
 
 BAN_MAX_ATTEMPTS       = int(os.getenv("BAN_MAX_ATTEMPTS", "3"))
@@ -86,6 +93,47 @@ _load_ban_file()
 
 _chatbot_pref_lock = Lock()
 _chatbot_autostart_enabled = True
+
+
+def _append_banned_word(entry: str) -> bool:
+    s = (entry or "").strip()
+    if not s:
+        raise ValueError("Missing word")
+    if "\n" in s or "\r" in s:
+        raise ValueError("Newlines are not allowed")
+    if len(s) > 200:
+        raise ValueError("Too long (max 200 chars)")
+
+    path = CHATBOT_BANNED_WORDS_PATH
+    dirpath = os.path.dirname(path) or "."
+    os.makedirs(dirpath, exist_ok=True)
+
+    # Minimal behavior: lock the target file and append one line.
+    # This does not change file permissions.
+    with open(path, "a+", encoding="utf-8") as f:
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+        f.seek(0)
+        raw = f.read()
+        existing_lines = raw.splitlines()
+
+        norm_existing = set()
+        for line in existing_lines:
+            t = (line or "").strip()
+            if not t or t.startswith("#"):
+                continue
+            norm_existing.add(t.casefold())
+
+        if s.casefold() in norm_existing:
+            return False
+
+        # Keep one-entry-per-line; if file doesn't end with newline, add one first.
+        f.seek(0, os.SEEK_END)
+        if raw and not raw.endswith("\n"):
+            f.write("\n")
+        f.write(s + "\n")
+        f.flush()
+        os.fsync(f.fileno())
+        return True
 
 def _load_chatbot_pref_file():
     global _chatbot_autostart_enabled
@@ -653,6 +701,20 @@ def set_chatbot_autostart():
         return jsonify({"error": "enabled must be boolean"}), 400
     _persist_chatbot_pref(payload['enabled'])
     return jsonify({"enabled": payload['enabled']})
+
+
+@app.post('/api/banned_words')
+@login_required
+def api_banned_words_add():
+    payload = request.get_json(silent=True) or {}
+    word = (payload.get('word') or '').strip()
+    try:
+        added = _append_banned_word(word)
+        return jsonify({"ok": True, "added": bool(added), "already": (not added)})
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"write failed: {e}"}), 500
 
 
 # --- Nginx via systemd ---

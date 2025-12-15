@@ -215,7 +215,7 @@ color: #ff3b3b;
 @media (min-width: 600px) {
     button {
         font-size: 24px;
-        padding: 25px 50px;
+        padding: 20px 40px;
         width: 45%;
         max-width: none;
     }
@@ -595,13 +595,31 @@ letter-spacing:.5px;
     transition:max-height .28s ease, opacity .28s ease, transform .28s ease;
 }
 .advanced-panel.expanded{
-    max-height:600px;
+    max-height:1100px;
     opacity:1;
     pointer-events:auto;
     transform:translateY(0);
 }
 
-.advanced-panel button{
+.advanced-group{
+    width:100%;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+}
+
+.advanced-group-title{
+    width:80%;
+    max-width:600px;
+    margin:40px auto 0px;
+    font-size:28px;
+    letter-spacing:2px;
+    text-transform:uppercase;
+    opacity:.75;
+    text-align:center;
+}
+
+.advanced-panel .advanced-action-btn{
   display: block;
   width: 45%;
   max-width: 520px;     /* juster om du vil */
@@ -609,7 +627,7 @@ letter-spacing:.5px;
 }
 
 @media (max-width: 780px){
-  .advanced-panel button{
+    .advanced-panel .advanced-action-btn{
     width: 80%;
     min-width: 0;
   }
@@ -620,7 +638,7 @@ letter-spacing:.5px;
     width:80%;
     max-width:600px;
     margin:15px auto;
-    padding:25px 0px;
+    padding:20px 0px;
     background:linear-gradient(145deg,#181818,#121212);
     border:1px solid #2a2a2a;
     border-radius:16px;
@@ -642,7 +660,7 @@ letter-spacing:.5px;
 }
 @media (min-width:600px){
     .bot-toggle-card{width:45%; max-width:none;}
-    .advanced-panel button{width:45%; max-width:none;}
+    .advanced-panel .advanced-action-btn{width:45%; max-width:none;}
 }
 .sg-switch{position:relative;display:inline-flex;align-items:center;cursor:pointer;touch-action:pan-y;}
 .sg-switch input{position:absolute;opacity:0;width:0;height:0;}
@@ -677,15 +695,15 @@ letter-spacing:.5px;
 .logs-header{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0 0 10px;justify-self:center;}
 .logs-service-wrap{display:contents;align-items:center;gap:6px;background:#141414;padding:5px 10px;border:1px solid #262626;border-radius:10px;box-shadow:0 2px 6px -3px rgba(0,0,0,.55),0 0 0 1px #1c1c1c;}
 .logs-service-label{font-size:11px;letter-spacing:.6px;text-transform:uppercase;opacity:.65;font-weight:600;}
-.logs-service-select{display:inline-block;background:#1b1b1b;border:1px solid #303030;color:#e6e6e6;font-size:13px;padding:6px 12px;border-radius:8px;appearance:none;min-width:160px;font-weight:500;letter-spacing:.4px;box-shadow:0 0 0 1px #161616 inset;}
+.logs-service-select{display:inline-block;background:#1b1b1b;border:1px solid #303030;color:#e6e6e6;font-size:13px;padding:6px 12px;border-radius:8px;appearance:none;min-width:130px; max-width:min-content;letter-spacing:.4px;box-shadow:0 0 0 1px #161616 inset;}
 .logs-service-select:focus{outline:2px solid #571669;outline-offset:2px;}
 @media (max-width:640px){
-    .logs-header{flex-direction:column;align-items:stretch;gap:8px;}
+    .logs-header{flex-direction:inherit;align-items:center;gap:0px 8px;}
     .logs-service-wrap, .logs-actions{width:100%;justify-content:space-between;}
     .logs-actions{order:2;}
 }
 #log-lines-select{height:24px;padding:2px 5px;font-size:11.5px;background:#1b1b1b;color:#e2e2e2;border:1px solid #303030;border-radius:6px;box-shadow:0 0 0 1px #161616 inset;}
-.log-follow-label{font-size:11px;opacity:.85;display:flex;align-items:center;gap:4px;padding:3px 6px;background:#1b1b1b;border:1px solid #2e2e2e;border-radius:7px;cursor:pointer;user-select:none;line-height:1;}
+.log-follow-label{font-size:11px;opacity:.85;display:flex;align-items:center;gap:4px;padding:3px 6px;background:#1b1b1b;border:1px solid #2e2e2e;border-radius:7px;cursor:pointer;user-select:none;max-width: min-content;}
 .log-follow-label:hover{background:#242424;opacity:.95;}
 .log-follow-label input{margin:0;}
 .logs-actions{display:contents;align-items:center;gap:4px;font-size:11.2px;flex-wrap:nowrap;background:#141414;padding:3px 6px;border:1px solid #262626;border-radius:10px;box-shadow:0 2px 6px -3px rgba(0,0,0,.55),0 0 0 1px #1c1c1c;}

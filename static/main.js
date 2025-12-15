@@ -302,6 +302,64 @@ function showStreamTitleForm() {
     });
 }
 
+// --- Banned Words (Chatbot) ---
+function showBannedWordForm(){
+  ensureFormAfterButton('showBannedWordInput','bannedWordForm');
+  const form = document.getElementById('bannedWordForm');
+  const btn  = document.getElementById('showBannedWordInput');
+  const input = document.getElementById('bannedWordInput');
+  if(btn) btn.style.display = 'none';
+  if(form) form.style.display = 'block';
+  if(input){
+    input.value = '';
+    input.focus();
+  }
+}
+
+function cancelBannedWord(){
+  const form = document.getElementById('bannedWordForm');
+  const btn  = document.getElementById('showBannedWordInput');
+  const input = document.getElementById('bannedWordInput');
+  if(form) form.style.display = 'none';
+  if(btn) btn.style.display = 'block';
+  if(input) input.value = '';
+}
+
+function applyBannedWord(){
+  const input = document.getElementById('bannedWordInput');
+  const raw = (input && input.value) ? input.value : '';
+  const word = raw.trim();
+  if(!word){
+    showToast('Please enter a word or sentence.','error');
+    return;
+  }
+  fetch('/api/banned_words', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ word })
+  })
+    .then(async (res) => {
+      let payload = null;
+      try { payload = await res.json(); } catch(_) {}
+      if(!res.ok){
+        const msg = (payload && (payload.error || payload.message)) ? (payload.error || payload.message) : ('HTTP ' + res.status);
+        throw new Error(msg);
+      }
+      return payload || { ok: true };
+    })
+    .then((js) => {
+      if(js && js.already){
+        showToast('Already in banned words.','info');
+      } else {
+        showToast('Added to banned words.','success');
+      }
+      cancelBannedWord();
+    })
+    .catch((err) => {
+      showToast('Error: ' + (err && err.message ? err.message : err), 'error');
+    });
+}
+
 // Raid Channel
 function applyRaid() {
     const channelName = document.getElementById("raidChannelInput").value;
