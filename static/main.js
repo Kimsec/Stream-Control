@@ -1321,6 +1321,52 @@ const _twitchEmbedTmpl = twitchContainer?.dataset.embedTemplate || 'https://play
 const _twitchEmbedAllow = twitchContainer?.dataset.embedAllow || 'autoplay; fullscreen';
 const _twitchEmbedTitle = twitchContainer?.dataset.embedTitle || 'Twitch player';
 
+function _syncHlsPreviewMaxWidth(){
+  const docEl = document.documentElement;
+  if(!docEl) return;
+
+  // Only HLS <video> (and placeholder) should be affected. Twitch iframe stays untouched.
+  if(_previewType !== 'hls' && _previewType !== 'placeholder'){
+    docEl.style.setProperty('--hls-preview-max-w', '100%');
+    return;
+  }
+
+  // Only enforce the chat rule while the Chat tab is active (otherwise #chat has no height).
+  const chatPanel = document.getElementById('chat');
+  const chatPanelActive = !!(chatPanel && chatPanel.classList && chatPanel.classList.contains('active'));
+  if(!chatPanelActive || !twitchContainer || twitchContainer.classList.contains('hidden')){
+    docEl.style.setProperty('--hls-preview-max-w', '100%');
+    return;
+  }
+
+  const panelH = (chatPanel.getBoundingClientRect ? chatPanel.getBoundingClientRect().height : 0) || 0;
+  const containerW = (twitchContainer.getBoundingClientRect ? twitchContainer.getBoundingClientRect().width : 0) || 0;
+  if(panelH <= 0 || containerW <= 0){
+    docEl.style.setProperty('--hls-preview-max-w', '100%');
+    return;
+  }
+
+  // Requirement: chat height must stay >= 40% of available chat panel height.
+  // Since chat height = panelH - previewH, this means previewH must be <= 60% of panelH.
+  const maxPreviewH = panelH * 0.60;
+
+  // Preview is effectively 16:9 and also capped by CSS max-height: 60vh.
+  const viewportH = window.innerHeight || document.documentElement.clientHeight || 0;
+  const cssMaxH = viewportH > 0 ? (viewportH * 0.60) : Infinity;
+  const fullWidthH = Math.min(containerW * 9 / 16, cssMaxH);
+
+  // If full width doesn't violate chat >= 40%, keep it at 100%.
+  if(fullWidthH <= maxPreviewH){
+    docEl.style.setProperty('--hls-preview-max-w', '100%');
+    return;
+  }
+
+  // Otherwise, cap width so preview height becomes <= maxPreviewH.
+  const neededW = (maxPreviewH * 16 / 9);
+  const pct = Math.max(0, Math.min(100, (neededW / containerW) * 100));
+  docEl.style.setProperty('--hls-preview-max-w', pct.toFixed(2) + '%');
+}
+
 function _setChatPreviewOffset(px){
   const docEl = document.documentElement;
   if(!docEl) return;
@@ -1331,9 +1377,11 @@ function _setChatPreviewOffset(px){
 function _syncPreviewOffset(){
   if(!_previewVisible || !twitchContainer || twitchContainer.classList.contains('hidden')){
     _setChatPreviewOffset(0);
+    _syncHlsPreviewMaxWidth();
     return;
   }
   _setChatPreviewOffset(twitchContainer.offsetHeight || 0);
+  _syncHlsPreviewMaxWidth();
 }
 
 function _watchPreviewHeight(){
@@ -1343,6 +1391,9 @@ function _watchPreviewHeight(){
       const entry = entries && entries[0];
       const h = entry ? entry.contentRect.height : (twitchContainer.offsetHeight || 0);
       _setChatPreviewOffset(_previewVisible ? h : 0);
+
+      // Keep HLS sizing smooth while resizing.
+      _syncHlsPreviewMaxWidth();
     });
   }
   try{ _previewResizeObserver.observe(twitchContainer); }catch(_){ }
@@ -1356,6 +1407,7 @@ function _unwatchPreviewHeight(){
 
 window.addEventListener('resize', () => {
   if(_previewVisible) _syncPreviewOffset();
+  else _syncHlsPreviewMaxWidth();
 });
 
 function _getCachedChannel(){
@@ -1429,13 +1481,12 @@ async function _detectHlsUrl(){
 
 function _createHlsVideo(url){
   const v = document.createElement('video');
+  v.classList.add('hls-preview');
   v.controls = true;
   v.autoplay = false;
   v.muted = true; // allow autoplay
   v.playsInline = true;
   v.style.display = 'block';
-  v.style.width = '100%';
-  v.style.height = 'auto';
   
   // Når videoen er klar til å spille av, prøv å starte
   v.addEventListener('canplay', () => {
