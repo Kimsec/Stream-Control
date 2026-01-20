@@ -165,7 +165,6 @@ cp .env.example .env
 ```
 
 ### For Production (Ubuntu/Debian)
-See [DEPLOYMENT.md](DEPLOYMENT.md) for a complete production setup guide with:
 - ✅ Gunicorn with threaded workers
 - ✅ Systemd service installation
 - ✅ Secure password hashing
@@ -494,14 +493,6 @@ Ideas:
 
 ---
 
-## Contributing
-
-1. Fork
-2. Branch `feat/<name>`
-3. Commit with clear messages
-4. Open PR (Problem / Solution / Test)
-
----
 
 ## Disclaimer
 
