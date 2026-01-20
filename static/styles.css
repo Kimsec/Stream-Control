@@ -4,6 +4,9 @@ html {
 
 :root {
     --preview-offset: 0px; /* dynamisk høyde for stream-preview */
+    /* HLS preview max-width is driven by JS for smooth, resolution-independent scaling.
+       JS sets this to a % value between 60% (maximized) and 100% (small window). */
+    --hls-preview-max-w: 100%;
 }
 
 body {
@@ -63,6 +66,17 @@ body {
     border: none;
 }
 
+/* HLS preview (<video>) sizing (separate from Twitch iframe) */
+.twitch-container video.hls-preview {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    max-height: 60vh;
+    max-width: var(--hls-preview-max-w);
+    margin: 0 auto;
+}
+
 /* Chat fanen fullskjerm uten scroll */
 #chat.tab-content.active {
     position: absolute;
@@ -87,10 +101,10 @@ body {
 /* Twitch chat iframe justert for å skjule toppen */
 #twitch-chat-iframe {
     position: absolute;
-    top: -105px; /* skjul toppelementene */
+    top: -93px; /* skjul toppelementene */
     left: 0;
     width: 100%;
-    height: calc(100% + 105px); /* strekk for å kompensere */
+    height: calc(100% + 93px); /* strekk for å kompensere */
     border: none;
 }
 
@@ -184,7 +198,7 @@ button {
     cursor: pointer;
     border-radius: 15px;
     width: 80%;
-    max-width: 600px;
+    max-width: 350px;
 }
 button:hover {
     background-color: #81029b;
@@ -568,7 +582,7 @@ letter-spacing:.5px;
 
 /* Health panel */
 .health-panel{
-    max-width:460px; margin:10px auto 30px; padding:18px 22px 24px;
+    max-width:400px; margin:10px auto 30px; padding:18px 22px 24px;
     background:#121212; border:1px solid #2a2a2a; border-radius:16px;
     box-shadow:0 4px 18px -4px rgba(0,0,0,.55),0 0 0 1px #1b1b1b;
     text-align:left; font-size:15px;
@@ -622,7 +636,7 @@ letter-spacing:.5px;
 .advanced-panel .advanced-action-btn{
   display: block;
   width: 45%;
-  max-width: 520px;     /* juster om du vil */
+  max-width: 350px;     /* juster om du vil */
   min-width: 320px;     /* hindrer at de blir for smale */
 }
 
@@ -636,7 +650,7 @@ letter-spacing:.5px;
 
 .bot-toggle-card{
     width:80%;
-    max-width:600px;
+    max-width:350px;
     margin:15px auto;
     padding:20px 0px;
     background:linear-gradient(145deg,#181818,#121212);
@@ -688,7 +702,7 @@ letter-spacing:.5px;
 .sg-switch input:checked + .sg-switch__slider{background:#81029b;}
 .sg-switch input:checked + .sg-switch__slider::after{transform:translateX(22px);}
 /* Logs Panel refined */
-.logs-panel{position:relative;max-width:700px;margin:8px auto 20px;padding:12px 14px 14px;background:#111;border:1px solid #272727;border-radius:18px;box-shadow:0 6px 24px -8px rgba(0,0,0,.6),0 0 0 1px #1a1a1a;}
+.logs-panel{position:relative;max-width:1000px;margin:8px auto 20px;padding:12px 14px 14px;background:#111;border:1px solid #272727;border-radius:18px;box-shadow:0 6px 24px -8px rgba(0,0,0,.6),0 0 0 1px #1a1a1a;}
 .logs-panel, .logs-panel * { 
     text-align:left; 
     justify-content: center;
