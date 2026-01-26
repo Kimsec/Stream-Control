@@ -176,6 +176,149 @@ function checkMiniPCStatus() {
 setInterval(checkMiniPCStatus, 5000);
 checkMiniPCStatus();
 
+// --- Live uptime (small timer under OBS status) ---
+let _liveUptimeStartMs = null;
+let _liveUptimeTimer = null;
+let _liveUptimeStartSource = null; // 'obs' | 'twitch'
+
+// Align uptime ticking to server time so it never resets across devices with skewed clocks.
+let _serverSkewMs = 0; // server_now_ms - Date.now()
+
+function _updateServerSkew(serverNowUnix){
+  const s = Number(serverNowUnix);
+  if(!Number.isFinite(s) || s <= 0) return;
+  _serverSkewMs = (s * 1000) - Date.now();
+}
+
+function _nowMs(){
+  return Date.now() + (_serverSkewMs || 0);
+}
+
+function _pad2(n){
+  const v = Math.max(0, n|0);
+  return (v < 10 ? '0' : '') + v;
+}
+
+function _formatUptimeHHMMSS(startMs){
+  const ms = Math.max(0, _nowMs() - (Number(startMs) || 0));
+  const totalSec = Math.floor(ms / 1000);
+  const hh = Math.floor(totalSec / 3600);
+  const mm = Math.floor((totalSec % 3600) / 60);
+  const ss = totalSec % 60;
+  return _pad2(hh) + ':' + _pad2(mm) + ':' + _pad2(ss);
+}
+
+function _getUptimeEl(){
+  return document.getElementById('streamUptime');
+}
+
+function _renderUptime(){
+  const el = _getUptimeEl();
+  if(!el || !_isStreamingLive || !_liveUptimeStartMs) return;
+  // Status-line already says "Status: Live"; keep the pill as time only.
+  el.textContent = _formatUptimeHHMMSS(_liveUptimeStartMs);
+}
+
+function _scheduleUptimeTick(){
+  if(_liveUptimeTimer){
+    try { clearTimeout(_liveUptimeTimer); } catch(_) {}
+    _liveUptimeTimer = null;
+  }
+  if(!_isStreamingLive || !_liveUptimeStartMs) return;
+
+  const now = _nowMs();
+
+  // Smooth when visible; reduce wakeups when tab is hidden.
+  const cadenceMs = (typeof document !== 'undefined' && document.hidden) ? 5000 : 1000;
+  const delay = (cadenceMs - (now % cadenceMs)) + 40; // align to boundary, small fudge
+  _liveUptimeTimer = setTimeout(() => {
+    _renderUptime();
+    _scheduleUptimeTick();
+  }, delay);
+}
+
+function _startUptime(startMs, source){
+  _liveUptimeStartMs = Number(startMs) || _nowMs();
+  _liveUptimeStartSource = source || 'obs';
+  const el = _getUptimeEl();
+  if(el) el.classList.remove('hidden');
+  _renderUptime();
+  _scheduleUptimeTick();
+}
+
+function _stopUptime(){
+  if(_liveUptimeTimer){
+    try { clearTimeout(_liveUptimeTimer); } catch(_) {}
+    _liveUptimeTimer = null;
+  }
+  _liveUptimeStartMs = null;
+  _liveUptimeStartSource = null;
+  const el = _getUptimeEl();
+  if(el){
+    el.textContent = '';
+    el.classList.add('hidden');
+  }
+}
+
+function _maybeAdoptStartMs(startMs, source){
+  const ms = Number(startMs) || 0;
+  if(!_isStreamingLive || !ms) return;
+  if(!Number.isFinite(ms)) return;
+  // Ignore absurd values (future / very old)
+  if(ms > _nowMs() + 60_000) return;
+  if((_nowMs() - ms) > 7 * 24 * 3600 * 1000) return;
+
+  if(!_liveUptimeStartMs){
+    _startUptime(ms, source);
+    return;
+  }
+
+  // Promotion rules:
+  // - Never downgrade from Twitch to OBS.
+  // - Only adopt a new start time if it makes uptime *longer* (i.e., earlier start),
+  //   so the timer never jumps backwards.
+  if(_liveUptimeStartSource === 'twitch' && source !== 'twitch') return;
+
+  const current = Number(_liveUptimeStartMs) || 0;
+  const makesLonger = ms < (current - 1000);
+  if(source === 'twitch'){
+    if(_liveUptimeStartSource !== 'twitch'){
+      // Promote to Twitch as soon as it's available, but never jump backwards.
+      _liveUptimeStartSource = 'twitch';
+      if(makesLonger) _liveUptimeStartMs = ms;
+      _renderUptime();
+      _scheduleUptimeTick();
+      return;
+    }
+    if(makesLonger){
+      _liveUptimeStartMs = ms;
+      _renderUptime();
+      _scheduleUptimeTick();
+    }
+    return;
+  }
+
+  // OBS (or other non-twitch sources)
+  if(makesLonger && _liveUptimeStartSource !== 'twitch'){
+    _liveUptimeStartMs = ms;
+    _liveUptimeStartSource = source;
+    _renderUptime();
+    _scheduleUptimeTick();
+  }
+}
+
+function _maybeAdoptServerUptimeSeconds(uptimeSeconds, serverNowUnix, source){
+  const u = Number(uptimeSeconds);
+  const s = Number(serverNowUnix);
+  if(!_isStreamingLive) return;
+  if(!Number.isFinite(u) || u < 0) return;
+  if(!Number.isFinite(s) || s <= 0) return;
+
+  _updateServerSkew(s);
+  const startMs = (s * 1000) - (Math.floor(u) * 1000);
+  _maybeAdoptStartMs(startMs, source);
+}
+
 // OBS via Flask API
 function switchToBRB() {
     fetch('/obs/switch_scene', {
@@ -435,13 +578,23 @@ function checkStreamStatus() {
       if (lastStreaming === null) {
         // første måling: sett baseline
         lastStreaming = isStreamingNow;
+        if(!isStreamingNow) _stopUptime();
       } else if (isStreamingNow !== lastStreaming) {
         if (isStreamingNow) {
           if (_chatbotAutoStartEnabled) _startChatbot();
         } else {
           _stopChatbot();
+          _stopUptime();
         }
         lastStreaming = isStreamingNow;
+      }
+
+      // Update server clock alignment and adopt OBS uptime as fallback.
+      if(data && typeof data.server_now_unix !== 'undefined'){
+        _updateServerSkew(data.server_now_unix);
+      }
+      if(isStreamingNow && data && typeof data.obs_uptime_seconds !== 'undefined'){
+        _maybeAdoptServerUptimeSeconds(data.obs_uptime_seconds, data.server_now_unix, 'obs');
       }
 
       // --- Viewer polling start/stop based on stream state ---
@@ -468,6 +621,7 @@ function checkStreamStatus() {
 
       if (data.error) {
         status.textContent = "Error reading OBS";
+        _stopUptime();
         status.className = "status off";
         scene.textContent = "Scene: —";
         startBtn.style.display = "inline-block";
@@ -477,7 +631,7 @@ function checkStreamStatus() {
         return;
       }
 
-      setStatusWithDot(status, isStreamingNow ? 'Status: Streaming' : 'Status: Offline', isStreamingNow);
+      setStatusWithDot(status, isStreamingNow ? 'Status: Live' : 'Status: Offline', isStreamingNow);
       status.className = "status " + (isStreamingNow ? "on" : "off");
 
             const currentScene = (data.currentScene || "—");
@@ -501,6 +655,7 @@ function checkStreamStatus() {
     })
     .catch(err => {
       console.error('Stream status error:', err);
+      _stopUptime();
       startBtn.style.display = "inline-block";
       stopBtn.style.display = "none";
       if (switchToLiveBtn) switchToLiveBtn.style.display = "inline-block";
@@ -547,6 +702,21 @@ function _pollViewersOnce(){
     .then(js => {
       if(js && typeof js.viewer_count !== 'undefined'){
         _updateViewerUI(!!js.is_live, js.viewer_count|0);
+
+        // Prefer Twitch server-derived uptime; promote from OBS fallback when Twitch responds.
+        if(typeof js.server_now_unix !== 'undefined'){
+          _updateServerSkew(js.server_now_unix);
+        }
+        if(js.is_live){
+          if(typeof js.uptime_seconds !== 'undefined'){
+            _maybeAdoptServerUptimeSeconds(js.uptime_seconds, js.server_now_unix, 'twitch');
+          } else if(typeof js.started_at_unix !== 'undefined'){
+            const st = Number(js.started_at_unix);
+            if(Number.isFinite(st) && st > 0){
+              _maybeAdoptStartMs(st * 1000, 'twitch');
+            }
+          }
+        }
       }else{
         _updateViewerUI(false, 0);
       }
@@ -1229,6 +1399,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if(!document.hidden){
       const obsTab = document.querySelector('.tab.active[data-tab="obs"]');
       if(obsTab) prefetchChannelInfo(false);
+    }
+
+    // If we're live, switch uptime cadence immediately (1s visible / slower hidden).
+    if(_isStreamingLive && _liveUptimeStartMs){
+      if(!document.hidden) _renderUptime();
+      _scheduleUptimeTick();
     }
   });
   const ok = document.getElementById('confirm-stop-stream');
