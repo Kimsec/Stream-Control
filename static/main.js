@@ -701,6 +701,22 @@ const alertIframe = document.getElementById('alertbox-iframe');
 
 function requestAudioPermission() {
   try {
+    const desiredSrc = alertIframe?.getAttribute('data-src') || '';
+    const currentSrc = alertIframe?.getAttribute('src') || '';
+
+    // Load StreamElements only after a user click (banner).
+    if (alertIframe && desiredSrc && currentSrc !== desiredSrc) {
+      alertIframe.addEventListener('load', () => {
+        try {
+          alertIframe?.contentWindow?.postMessage({ type: 'unlock-audio' }, '*');
+        } catch (e) {
+          console.error('Error activating audio:', e);
+        }
+      }, { once: true });
+      alertIframe.setAttribute('src', desiredSrc);
+    }
+
+    // If already loaded (or no data-src), attempt immediately too.
     alertIframe?.contentWindow?.postMessage({ type: 'unlock-audio' }, '*');
   } catch (e) {
     console.error('Error activating audio:', e);
