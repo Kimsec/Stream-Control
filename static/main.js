@@ -109,27 +109,54 @@ function showToast(msg, type='info', opts={}){
   setTimeout(close, ttl);
 }
 // Tabs
+const ACTIVE_TAB_KEY = 'stream-control.activeTab';
 const tabs = document.querySelectorAll('.tab');
 const tabContents = document.querySelectorAll('.tab-content');
 const footer = document.getElementById('main-footer');
 tabs.forEach(tab => {
     tab.addEventListener('click', () => {
+        const tabId = tab.getAttribute('data-tab');
+        if (!tabId) return;
+        const activeTabContent = document.getElementById(tabId);
+        if (!activeTabContent) return;
+
         tabs.forEach(t => t.classList.remove('active'));
         tabContents.forEach(c => c.classList.remove('active'));
         tab.classList.add('active');
-        const activeTabContent = document.getElementById(tab.getAttribute('data-tab'));
         activeTabContent.classList.add('active');
 
+        try {
+          localStorage.setItem(ACTIVE_TAB_KEY, tabId);
+        } catch (e) {}
+
         // Kun chat skjuler footer og lar CSS styre høyde
-        if (tab.getAttribute('data-tab') === 'chat') {
-          footer.style.display = 'none';
+        if (tabId === 'chat') {
+          if (footer) footer.style.display = 'none';
           const chatContainerEl = document.getElementById('chat-container');
           if (chatContainerEl) chatContainerEl.style.height = '';
         } else {
-          footer.style.display = '';
+          if (footer) footer.style.display = '';
         }
     });
 });
+
+// Restore last active tab (localStorage-only)
+(() => {
+  let saved = '';
+  try {
+    saved = localStorage.getItem(ACTIVE_TAB_KEY) || '';
+  } catch (e) {
+    return;
+  }
+  if (!saved) return;
+  if (!/^[A-Za-z0-9_-]+$/.test(saved)) return;
+
+  const savedTab = document.querySelector(`.tab[data-tab="${saved}"]`);
+  const savedContent = document.getElementById(saved);
+  if (!savedTab || !savedContent) return;
+
+  savedTab.click();
+})();
 
 // Mini-PC
 function sendRequest(url) {
