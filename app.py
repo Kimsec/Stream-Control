@@ -1,6 +1,6 @@
 from flask import Flask, render_template, jsonify, session, redirect, url_for, request, send_from_directory, make_response, abort
 from obsws_python import ReqClient
-from datetime import timedelta
+from datetime import timedelta, datetime, timezone
 from dotenv import load_dotenv
 import os, subprocess, requests, json, time
 import fcntl
@@ -362,15 +362,47 @@ def obs_stream_status():
         # Bruk kun 'output_active' uten å sjekke data
         is_streaming = resp_s.output_active
 
+        server_now_unix = int(time.time())
+
+        obs_uptime_seconds = None
+        if is_streaming:
+            # OBS WebSocket v5: GetStreamStatus returns either outputTimecode or outputDuration.
+            # obsws_python maps these to snake_case attributes.
+            tc = getattr(resp_s, 'output_timecode', None) or getattr(resp_s, 'outputTimecode', None)
+            if isinstance(tc, str) and tc:
+                try:
+                    # "HH:MM:SS.mmm" (or "HH:MM:SS")
+                    parts = tc.split(':')
+                    if len(parts) == 3:
+                        hh = int(parts[0] or 0)
+                        mm = int(parts[1] or 0)
+                        ss_part = parts[2]
+                        ss = int((ss_part.split('.', 1)[0] or '0'))
+                        obs_uptime_seconds = max(0, hh * 3600 + mm * 60 + ss)
+                except Exception:
+                    obs_uptime_seconds = None
+
+            if obs_uptime_seconds is None:
+                dur_ms = getattr(resp_s, 'output_duration', None) or getattr(resp_s, 'outputDuration', None)
+                if dur_ms is not None:
+                    try:
+                        obs_uptime_seconds = max(0, int(float(dur_ms) / 1000.0))
+                    except Exception:
+                        obs_uptime_seconds = None
+
         resp_sc = cl.get_current_program_scene()
         current_scene = resp_sc.current_program_scene_name
 
         # Removed verbose logging - enable for debugging if needed
         # print(f"[OBS] Streaming: {is_streaming}; Scene: {current_scene}")
-        return jsonify({
+        out = {
             "isStreaming": is_streaming,
-            "currentScene": current_scene
-        })
+            "currentScene": current_scene,
+            "server_now_unix": server_now_unix,
+        }
+        if obs_uptime_seconds is not None:
+            out["obs_uptime_seconds"] = obs_uptime_seconds
+        return jsonify(out)
     except Exception as e:
         print("OBS ws error:", e)
         return jsonify({"error": str(e)}), 500
@@ -519,6 +551,7 @@ def get_channel_info():
 @login_required
 def twitch_stream_info():
     try:
+        server_now_unix = int(time.time())
         token = ensure_user_token()
         if not token:
             return jsonify({"error": "Missing Twitch user token"}), 400
@@ -539,15 +572,36 @@ def twitch_stream_info():
         js = resp.json()
         data = (js.get('data') or [])
         if not data:
-            return jsonify({"is_live": False, "viewer_count": 0})
+            return jsonify({"is_live": False, "viewer_count": 0, "server_now_unix": server_now_unix})
         s = data[0]
+
+        started_at = s.get("started_at", "")
+        started_at_unix = None
+        uptime_seconds = None
+        if started_at:
+            try:
+                # Twitch returns UTC timestamps with Z suffix.
+                dt = datetime.fromisoformat(started_at.replace('Z', '+00:00'))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                started_at_unix = int(dt.timestamp())
+                uptime_seconds = max(0, int(server_now_unix - started_at_unix))
+            except Exception:
+                started_at_unix = None
+                uptime_seconds = None
+
         out = {
             "is_live": True,
             "viewer_count": int(s.get("viewer_count", 0) or 0),
             "title": s.get("title", ""),
             "game_name": s.get("game_name", ""),
-            "started_at": s.get("started_at", "")
+            "started_at": started_at,
+            "server_now_unix": server_now_unix,
         }
+        if started_at_unix is not None:
+            out["started_at_unix"] = started_at_unix
+        if uptime_seconds is not None:
+            out["uptime_seconds"] = uptime_seconds
         return jsonify(out)
     except requests.exceptions.RequestException as e:
         resp_obj = getattr(e, 'response', None)
