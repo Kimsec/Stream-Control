@@ -207,6 +207,25 @@ button:hover {
     font-size: 30px;
     margin: 20px;
 }
+
+/* Small Twitch-like live timer under OBS status */
+.stream-uptime{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    margin: -14px auto 10px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(233, 25, 22, 0.45);
+    background: rgba(233, 25, 22, 0.10);
+    color: #e91916; /* Twitch-ish red */
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: .6px;
+    text-transform: uppercase;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', Arial, sans-serif;
+}
 .status .hc-dot{ width:16px; height:16px; box-shadow:0 0 0 1px #000, 0 0 5px -1px #000 inset; vertical-align:baseline; }
 .on {
     color: #25c05a;
@@ -800,7 +819,7 @@ letter-spacing:.5px;
 .restream-action:active { transform:translateY(1px); }
 
 /* --- Mobile condensed restream list (hide RTMP URL until editing) --- */
-@media (max-width:640px){
+@media (max-width:600px){
     #restreamOptions { padding:18px 18px 22px; }
     #restreamOptions h3 { font-size:17px !important; }
     .endpoint-row { grid-template-columns: auto 1fr auto auto; column-gap:4px !important; }
@@ -972,8 +991,11 @@ letter-spacing:.5px;
 /* --- Preview Placeholder (when stream is offline) --- */
 .preview-placeholder {
     width: 100%;
-    height: calc(100vw * 9 / 16);
+    height: auto;
+    aspect-ratio: 16 / 9;
     max-height: 60vh;
+    max-width: var(--hls-preview-max-w);
+    margin: 0 auto;
     background: linear-gradient(145deg, #0a0a0a, #121212);
     display: flex;
     align-items: center;
@@ -1024,5 +1046,22 @@ letter-spacing:.5px;
     .placeholder-content h3 { font-size: 20px; }
     .placeholder-content p { font-size: 14px; }
     .placeholder-icon svg { width: 48px; height: 48px; }
+}
+
+.tab-container .tab{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.tab-container .tab .tab-text{
+  display: none;
+}
+
+@media (min-width: 520px){
+  .tab-container .tab .tab-text{
+    display: inline;
+  }
 }
 
