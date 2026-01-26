@@ -30,9 +30,12 @@
     </div>
     <!-- Tab knappene -->
     <div class="tab-container">
-        <div class="tab active" data-tab="minipc">MPC</div>
+        <div class="tab active" data-tab="minipc" aria-label="Settings" title="Settings">
+            <i class="fa-solid fa-gear" aria-hidden="true"></i>
+            <span class="tab-text">Settings</span>
+        </div>
+        <div class="tab" data-tab="belabox">Belabox</div>
         <div class="tab" data-tab="obs">OBS</div>
-        <div class="tab" data-tab="belabox">Bela</div>
         <div class="tab" data-tab="chat">Chat</div>
     </div>
 
@@ -126,6 +129,7 @@
     <div id="obs" class="tab-content">
         <div class="button-container">
             <p id="streamStatus" class="status">Status: Unknown</p>
+            <div id="streamUptime" class="stream-uptime hidden" aria-live="polite"></div>
             <p id="obsScene" class="status">Scene: Unknown</p>
             <p id="obsViewers" class="status" style="margin-top:2px;">Viewers: —</p>
             <button id="startStreamBtn" onclick="sendRequest('/obs/start_stream')">Start Stream</button>
