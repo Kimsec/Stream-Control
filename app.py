@@ -53,7 +53,7 @@ CHATBOT_BANNED_WORDS_PATH = os.getenv(
 BAN_MAX_ATTEMPTS       = int(os.getenv("BAN_MAX_ATTEMPTS", "3"))
 BAN_DATA_PATH          = os.getenv("BAN_DATA_PATH", os.path.join(os.path.dirname(__file__), "bans.json"))
 _ban_lock = Lock()
-_ban_cache = {"attempts": {}, "bans": {}}  # structure: attempts[ip] = {count:int, first_ts, last_ts, agents:set}; bans[ip] = {...}
+_ban_cache = {"attempts": {}, "bans": {}} 
 
 def _load_ban_file():
     global _ban_cache
@@ -61,12 +61,7 @@ def _load_ban_file():
         with open(BAN_DATA_PATH, 'r', encoding='utf-8') as f:
             data = json.load(f)
         if isinstance(data, dict):
-            # normalize sets
-            for ip, rec in data.get('attempts', {}).items():
-                if isinstance(rec.get('agents'), list):
-                    rec['agents'] = set(rec['agents'])
             _ban_cache = data
-            # ensure keys
             _ban_cache.setdefault('attempts', {})
             _ban_cache.setdefault('bans', {})
         else:
@@ -75,10 +70,10 @@ def _load_ban_file():
         _ban_cache = {"attempts": {}, "bans": {}}
 
 def _save_ban_file():
-    tmp = {"attempts": {}, "bans": {}}
-    for ip, rec in _ban_cache.get('attempts', {}).items():
-        tmp['attempts'][ip] = {**rec, 'agents': sorted(list(rec.get('agents', [])))[:10]}
-    tmp['bans'] = _ban_cache.get('bans', {})
+    tmp = {
+        "attempts": _ban_cache.get("attempts", {}) or {},
+        "bans": _ban_cache.get("bans", {}) or {},
+    }
     try:
         with open(BAN_DATA_PATH, 'w', encoding='utf-8') as f:
             json.dump(tmp, f, indent=2)
@@ -180,20 +175,31 @@ def _is_ip_banned(ip: str) -> bool:
     with _ban_lock:
         return ip in _ban_cache['bans']
 
-def _register_failed_attempt(ip: str, user_agent: str):
-    now = time.time()
+def _register_failed_attempt(ip: str):
     with _ban_lock:
-        attempts = _ban_cache['attempts'].setdefault(ip, {"count":0, "first_ts":now, "last_ts":now, "agents": set()})
-        attempts['count'] += 1
-        attempts['last_ts'] = now
-        attempts['agents'].add(user_agent[:160])  # truncate UA
-        if attempts['count'] >= BAN_MAX_ATTEMPTS and ip not in _ban_cache['bans']:
-            _ban_cache['bans'][ip] = {
+        now = int(time.time())
+        attempts = _ban_cache.setdefault('attempts', {}).setdefault(ip, {
+            "count": 0,
+            "first_ts": now,
+            "last_ts": now,
+        })
+
+        now = int(time.time())
+        attempts["count"] = int(attempts.get("count", 0)) + 1
+        attempts["last_ts"] = now
+
+        if attempts["count"] >= BAN_MAX_ATTEMPTS:
+            bans = _ban_cache.setdefault('bans', {})
+            bans[ip] = {
                 "banned_ts": now,
-                "reason": f"Exceeded {BAN_MAX_ATTEMPTS} failed login attempts",
-                "attempts": attempts['count'],
-                "agents": sorted(list(attempts['agents']))[:10]
+                "reason": "Exceeded 3 failed login attempts",
+
             }
+            try:
+                _ban_cache.get('attempts', {}).pop(ip, None)
+            except Exception:
+                pass
+
         _save_ban_file()
 
 def _register_success(ip: str):
@@ -241,6 +247,7 @@ def login():
     if _is_ip_banned(ip):
         # Return 403 with generic message (avoid enumerating policy)
         return render_template('login.html', error="Access denied. Too many attempts.", banned=True), 403
+
     if request.method == 'POST':
         entered_password = request.form.get('password', '')
         if LOGIN_PASSWORD_HASH and check_password_hash(LOGIN_PASSWORD_HASH, entered_password):
@@ -249,12 +256,12 @@ def login():
             _register_success(ip)
             return redirect(url_for('home'))
         else:
-            _register_failed_attempt(ip, request.headers.get('User-Agent','?'))
-            # Optional: do not indicate remaining attempts to prevent probing
+            _register_failed_attempt(ip)
             banned_now = _is_ip_banned(ip)
             error = "Incorrect password." if not banned_now else "Access denied. Too many attempts."
             if banned_now:
                 return render_template('login.html', error=error, banned=True), 403
+
     return render_template('login.html', error=error, banned=False)
 
 
@@ -271,8 +278,7 @@ def bans_page():
 @app.get('/api/bans')
 @login_required
 def api_bans():
-    data = _list_bans()
-    return jsonify({"bans": data, "count": len(data)})
+    return jsonify({"bans": _list_bans() or {}})
 
 @app.post('/api/unban')
 @login_required
@@ -896,42 +902,56 @@ def api_logs():
 
 @sock.route('/ws/logs')
 def ws_logs(ws):
-    # simple stream of journalctl -f
-    # Expect query part: ...?service=streamguard
+    if not _ws_require_login(ws):
+        return
+
+    proc = None
     try:
-        # flask_sock doesn't parse query automatically; access environ
         q = ws.environ.get('QUERY_STRING') or ''
-        params = dict(p.split('=',1) for p in q.split('&') if '=' in p)
+        params = dict(p.split('=', 1) for p in q.split('&') if '=' in p)
         svc = (params.get('service') or '').lower()
         if svc not in LOG_ALLOWED_SERVICES:
             ws.send(json.dumps({"type": "error", "message": "unknown service"}))
             return
+
         unit = LOG_ALLOWED_SERVICES[svc]
-        # Use -n 0 to avoid sending an extra backlog (we already fetched the initial lines via /api/logs)
-        # This prevents duplicate lines and makes the selected initial line count (e.g. 25) accurate immediately.
         base_cmd = ["journalctl", "-u", unit, "-f", "-n", "0", "-o", "short-iso"]
         if os.geteuid() != 0:
             base_cmd = ["sudo", "-n"] + base_cmd
-        proc = subprocess.Popen(base_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+
+        proc = subprocess.Popen(
+            base_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1
+        )
         ws.send(json.dumps({"type": "info", "message": f"following {unit}"}))
+
         for line in proc.stdout:
             line = line.rstrip('\n')
-            # basic size guard
             if len(line) > 2000:
                 line = line[:2000] + '…'
             try:
                 ws.send(json.dumps({"type": "line", "data": line}))
             except Exception:
                 break
-        try:
-            proc.terminate()
-        except Exception:
-            pass
-    except Exception as e:
-        try:
-            ws.send(json.dumps({"type": "error", "message": str(e)}))
-        except Exception:
-            pass
+    finally:
+        if proc:
+            try:
+                proc.terminate()
+            except Exception:
+                pass
+
+def _ws_require_login(ws) -> bool:
+    # Bruker samme flagg som login_required()
+    if session.get('authenticated'):
+        return True
+    try:
+        ws.close(1008, "Authentication required")  # 1008 = Policy Violation
+    except Exception:
+        pass
+    return False
 
 
 @app.route('/repair', methods=['POST'])
