@@ -23,6 +23,7 @@ load_dotenv()
 FLASK_SECRET_KEY       = os.getenv("FLASK_SECRET_KEY")
 CONFIG_PATH            = os.getenv("CONFIG_PATH")
 NGINX_CONF_OUT         = os.getenv("NGINX_CONF_OUT")
+ALERT_TOKEN            = os.getenv("ALERT_TOKEN").strip()
 
 MINI_PC_USER           = os.getenv("MINI_PC_USER")
 MINI_PC_IP             = os.getenv("MINI_PC_IP")
@@ -1010,15 +1011,39 @@ def ws_alerts(ws):
         with _ws_lock:
             _ws_clients.discard(ws)
 
-@app.post("/api/alert")
+@app.post('/api/alert')
 def api_alert():
-    data = request.get_json(force=True, silent=True) or {}
-    typ = (data.get("type") or "").strip().lower()
-    msg = (data.get("message") or "").strip()
-    if typ not in ("low", "restored"):
-        return jsonify({"ok": False, "message": "invalid type"}), 400
-    _ws_broadcast({"type": typ, "message": msg, "ts": time.time()})
-    return jsonify({"ok": True}), 200
+    global _alert_seq, _last_alert
+
+    # Block if token not configured
+    if not ALERT_TOKEN:
+        return jsonify({"ok": False, "error": "alert token not configured"}), 503
+
+    # Require shared secret token
+    token = request.headers.get("X-Alert-Token", "")
+    if token != ALERT_TOKEN:
+        return jsonify({"ok": False, "error": "forbidden"}), 403
+
+    data = request.get_json(silent=True) or {}
+    alert_type = (data.get("type") or "").lower().strip()
+    message = (data.get("message") or "")
+
+    if alert_type not in ("low", "restored"):
+        return jsonify({"ok": False, "error": "invalid type"}), 400
+
+    payload = None
+    with _alert_lock:
+        _alert_seq += 1
+        payload = {
+            "id": _alert_seq,
+            "type": alert_type,
+            "message": message,
+            "ts": time.time(),
+        }
+        _last_alert = payload
+
+    _ws_broadcast(payload)
+    return jsonify({"ok": True, "id": payload["id"]})
 
 @app.get("/overlay")
 def overlay():
@@ -1076,10 +1101,6 @@ def _current_token_info():
     return {"valid": True, "expires_in": info.get("expires_in", 0)}
 
 def ensure_user_token() -> str:
-    """
-    Returner gyldig user access token. Forsøker refresh hvis ugyldig eller
-    mindre enn 24t igjen. Tråd-sikker.
-    """
     with _token_lock:
         tok = _TOKENS.get("access", "")
         info = _validate_token(tok)
@@ -1184,7 +1205,7 @@ def sg_status():
 
     # SLS stats endpoint
     try:
-        sr = requests.get("http://192.168.25.5:8181/stats", timeout=1.5)
+        sr = requests.get("http://192.168.25.5:8181/stats", timeout=2)
         base['sls_state'] = 'ok' if sr.status_code == 200 else 'error'
     except Exception:
         base['sls_state'] = 'error'
