@@ -31,7 +31,7 @@ a.back:hover{text-decoration:underline;}
   <a href="/" class="back">← Back</a>
   <h1>IP Bans</h1>
   <div class="header-actions">
-    <input type="text" id="filter" class="filter-box" placeholder="Filter IP / reason / UA" />
+    <input type="text" id="filter" class="filter-box" placeholder="Filter IP / reason" />
     <button class="btn" onclick="reloadBans()">Reload</button>
   </div>
   <div id="banSummary" class="small" style="margin-top:6px;">Loading…</div>
@@ -41,7 +41,6 @@ a.back:hover{text-decoration:underline;}
         <th>IP</th>
         <th>Reason</th>
         <th>When</th>
-        <th>User-Agents</th>
         <th>Action</th>
       </tr>
     </thead>
@@ -53,7 +52,24 @@ async function fetchJSON(url, opts){
   const r = await fetch(url, opts); if(!r.ok) throw new Error(await r.text()); return r.json();
 }
 function fmtTime(ts){
-  try{const d=new Date(ts*1000);return d.toLocaleString();}catch(e){return ts+'';}
+  // ts expected as unix seconds
+  const n = Number(ts);
+  if (!Number.isFinite(n) || n <= 0) return '';
+  const d = new Date(n * 1000);
+
+  // Exact format: dd.mm.yyyy HH:MM in Norwegian time
+  const parts = new Intl.DateTimeFormat('nb-NO', {
+    timeZone: 'Europe/Oslo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).formatToParts(d);
+
+  const get = (type) => (parts.find(p => p.type === type)?.value || '');
+  return `${get('day')}.${get('month')}.${get('year')} ${get('hour')}:${get('minute')}`;
 }
 let bansData = {};
 async function reloadBans(){
@@ -77,23 +93,24 @@ function render(){
     document.getElementById('banSummary').textContent = '0 bans';
     return;
   }
+
   let shown=0;
   for(const [ip, rec] of entries){
     const reason = (rec.reason||'').toString();
-    const agents = rec.agents||[];
-  // attempts not displayed anymore
     const banned_ts = rec.banned_ts || 0;
-    const hay = (ip+' '+reason+' '+agents.join(' ')).toLowerCase();
+
+    const hay = (ip+' '+reason).toLowerCase();
     if(filter && !hay.includes(filter)) continue;
+
     shown++;
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td style=\"font-weight:600;\">${ip}</td>
+    tr.innerHTML = `<td style="font-weight:600;">${ip}</td>
       <td>${reason}</td>
       <td>${fmtTime(banned_ts)}</td>
-      <td>${agents.map(a=>`<span class=badge title=\"${a.replace(/\\"/g,'&quot;')}\">${a.slice(0,38)}</span>`).join('')}</td>
-      <td><button class=\"btn danger\" onclick=\"unban('${ip}')\">Unban</button></td>`;
+      <td><button class="btn danger" onclick="unban('${ip}')">Unban</button></td>`;
     body.appendChild(tr);
   }
+
   document.getElementById('bansTable').style.display = shown? 'table':'none';
   document.getElementById('empty').style.display = shown? 'none':'block';
   document.getElementById('banSummary').textContent = `${Object.keys(bansData).length} bans (showing ${shown})`;
