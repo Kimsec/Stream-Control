@@ -33,6 +33,7 @@ IDLE_WHEN_STREAM_ENDS: bool = os.getenv("IDLE_WHEN_STREAM_ENDS", "true").lower()
 EXIT_WHEN_STREAM_ENDS: bool = os.getenv("EXIT_WHEN_STREAM_ENDS", "false").lower() in ("1", "true", "yes", "y")
 
 ALERTS_BASE_URL: Optional[str] = os.getenv("ALERTS_BASE_URL")
+ALERT_TOKEN: str = os.getenv("ALERT_TOKEN")
 
 # ==== Twitch EventSub (WebSocket) ====
 TWITCH_CLIENT_ID      = os.getenv("TWITCH_CLIENT_ID")
@@ -423,14 +424,14 @@ def start_raid_watcher_thread():
     except Exception as e:
         print("[RaidGuard] not started:", e)
 
-def _notify_clients(kind: str, message: str) -> None:
-    if not ALERTS_BASE_URL:
-        return
-    try:
-        requests.post(f"{ALERTS_BASE_URL}/api/alert",
-                      json={"type": kind, "message": message}, timeout=1.5)
-    except Exception:
-        pass
+def _notify_clients(alert_type: str, message: str = "") -> None:
+    url = f"{ALERTS_BASE_URL.rstrip('/')}/api/alert"
+    payload = {"type": alert_type, "message": message}
+    headers = {"Content-Type": "application/json"}
+    if ALERT_TOKEN:
+        headers["X-Alert-Token"] = ALERT_TOKEN
+
+    requests.post(url, json=payload, headers=headers, timeout=5)
 
 def _send_chat_message(message: str) -> None:
     token = _current_user_token()
