@@ -877,6 +877,32 @@ const endpointsList    = document.getElementById('endpointsList');
 const saveRestreamBtn  = document.getElementById('saveRestream');
 const cancelRestreamBtn= document.getElementById('cancelRestream');
 const addEndpointBtn    = document.getElementById('addEndpoint');
+const RTMP_PLATFORM_PRESETS = {
+  twitch: {
+    label: 'Twitch',
+    defaultBase: 'rtmp://ingest.global-contribute.live-video.net/app',
+    iconMarkup: '<i class="fa-brands fa-twitch" aria-hidden="true"></i>'
+  },
+  youtube: {
+    label: 'YouTube',
+    defaultBase: 'rtmp://a.rtmp.youtube.com/live2',
+    iconMarkup: '<i class="fa-brands fa-youtube" aria-hidden="true"></i>'
+  },
+  kick: {
+    label: 'Kick',
+    defaultBase: 'rtmp://127.0.0.1:19360/fa723fc1b171.global-contribute.live-video.net',
+    iconMarkup: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M4 3h6v7h2.2L17 3h3l-5.3 8.1L20.5 21h-3.2l-4.2-7.3H10V21H4V3Z"/></svg>'
+  },
+  custom: {
+    label: 'Custom',
+    defaultBase: '',
+    iconMarkup: '<i class="fa-solid fa-server" aria-hidden="true"></i>'
+  }
+};
+const RTMP_PLATFORM_ORDER = ['twitch', 'youtube', 'kick', 'custom'];
+const EDIT_ICON_SVG = '<svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M13.586 3.586a2 2 0 0 1 2.828 2.828l-8.486 8.486a1 1 0 0 1-.293.195l-3 1a1 1 0 0 1-1.266-1.265l1-3a1 1 0 0 1 .195-.293l8.486-8.486Zm1.414 1.414L6.879 13.121l-.586 1.757 1.757-.586 8.121-8.121-1.171-1.171Z"/></svg>';
+const DELETE_ICON_SVG = '<svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M7 2a2 2 0 0 0-2 2v1H3.5a.5.5 0 0 0 0 1h.54l.82 9.016A2 2 0 0 0 6.856 17h6.288a2 2 0 0 0 1.996-1.984L15.96 6H16.5a.5.5 0 0 0 0-1H15V4a2 2 0 0 0-2-2H7Zm6 3H7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1ZM8.5 8.5a.5.5 0 0 1 .5.5v5a.5.5 0 1 1-1 0V9a.5.5 0 0 1 .5-.5Zm3 .5v5a.5.5 0 1 0 1 0V9a.5.5 0 0 0-1 0Z"/></svg>';
+const BASE_URL_ICON_SVG = '<svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M7.8 12.2a.75.75 0 0 1 0-1.06l3.34-3.34a2.25 2.25 0 1 1 3.18 3.18l-1.7 1.7a2.25 2.25 0 0 1-3.18 0 .75.75 0 1 1 1.06-1.06.75.75 0 0 0 1.06 0l1.7-1.7a.75.75 0 1 0-1.06-1.06L8.86 12.2a.75.75 0 0 1-1.06 0Zm-1.42 5.14a2.25 2.25 0 0 1 0-3.18l1.7-1.7a2.25 2.25 0 1 1 3.18 3.18l-3.34 3.34a2.25 2.25 0 0 1-3.18-3.18l.58-.58a.75.75 0 0 1 1.06 1.06l-.58.58a.75.75 0 0 0 1.06 1.06l3.34-3.34a.75.75 0 0 0-1.06-1.06l-1.7 1.7a.75.75 0 1 1-1.06-1.06l1.7-1.7a2.25 2.25 0 1 1 3.18 3.18l-3.34 3.34a2.25 2.25 0 0 1-3.18 0Z"/></svg>';
 
 if(restreamOptions){
   restreamOptions.setAttribute('aria-hidden','true');
@@ -924,184 +950,521 @@ function _closeRestreamPanel(){
   }
 }
 
-// Vis/restre restream-panel
-restreamBtn.addEventListener('click', () => {
-  _openRestreamPanel();
-    fetch('/rtmp_endpoints.json')
-        .then(r => r.json())
-        .then(data => {
-            endpointsList.innerHTML = '';
-            data.push_endpoints.forEach((ep) => {
-                const div = document.createElement('div');
-                div.className = 'endpoint-row';
+function _normalizeRtmpBase(base){
+  return String(base || '').trim().replace(/\/+$/, '');
+}
 
-                const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.checked = ep.enabled;
-                div.appendChild(checkbox);
+function _sanitizeStreamKey(key){
+  return String(key || '').trim().replace(/^\/+/, '').replace(/\/+$/, '');
+}
 
-                const nameInput = document.createElement('input');
-                nameInput.type = 'text';
-                nameInput.className = 'name-input';
-                nameInput.value = ep.name;
-                nameInput.disabled = true;
-                nameInput.style.backgroundColor = '#666';
-                nameInput.style.color = 'black';
-                nameInput.style.border = '1px solid #777';
-                nameInput.style.padding = '5px';
-                div.appendChild(nameInput);
+function _splitEndpointUrl(url){
+  const trimmed = String(url || '').trim();
+  const match = trimmed.match(/^(rtmps?:\/\/.+)\/([^/?#]+)$/i);
+  if(!match) return null;
+  return {
+    base: _normalizeRtmpBase(match[1]),
+    key: match[2]
+  };
+}
 
-                const urlInput = document.createElement('input');
-                urlInput.type = 'text';
-                urlInput.className = 'url-input';
-                urlInput.value = ep.url;
-                urlInput.disabled = true;
-                urlInput.style.backgroundColor = '#666';
-                urlInput.style.color = 'black';
-                urlInput.style.border = '1px solid #777';
-                urlInput.style.padding = '5px';
-                div.appendChild(urlInput);
+function _isTwitchBase(base){
+  return /^rtmps?:\/\/[^/]*live-video\.net\/app$/i.test(base || '');
+}
 
-                const editButton = document.createElement('button');
-                editButton.className = 'icon-btn edit-endpoint';
-                editButton.innerHTML = '<svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M13.586 3.586a2 2 0 0 1 2.828 2.828l-8.486 8.486a1 1 0 0 1-.293.195l-3 1a1 1 0 0 1-1.266-1.265l1-3a1 1 0 0 1 .195-.293l8.486-8.486Zm1.414 1.414L6.879 13.121l-.586 1.757 1.757-.586 8.121-8.121-1.171-1.171Z"/></svg>';
-                editButton.title = 'Edit';
-        editButton.addEventListener('click', () => {
-          const enabling = nameInput.disabled; // was disabled -> enabling edit
-          nameInput.disabled = !nameInput.disabled;
-          urlInput.disabled = !urlInput.disabled;
-          if (enabling) {
-            div.classList.add('editing');
-            nameInput.style.backgroundColor = '#444';
-            nameInput.style.color = 'white';
-            nameInput.style.border = '2px solid #81029b';
-            urlInput.style.backgroundColor = '#444';
-            urlInput.style.color = 'white';
-            urlInput.style.border = '2px solid #81029b';
-          } else {
-            div.classList.remove('editing');
-            nameInput.style.backgroundColor = '#666';
-            nameInput.style.color = 'black';
-            nameInput.style.border = '1px solid #777';
-            urlInput.style.backgroundColor = '#666';
-            urlInput.style.color = 'black';
-            urlInput.style.border = '1px solid #777';
-          }
-        });
-                div.appendChild(editButton);
+function _isYouTubeBase(base){
+  return /^rtmps?:\/\/[^/]*youtube\.com\/live\d+$/i.test(base || '');
+}
 
-                const deleteButton = document.createElement('button');
-                deleteButton.className = 'icon-btn delete-endpoint';
-                deleteButton.innerHTML = '<svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M7 2a2 2 0 0 0-2 2v1H3.5a.5.5 0 0 0 0 1h.54l.82 9.016A2 2 0 0 0 6.856 17h6.288a2 2 0 0 0 1.996-1.984L15.96 6H16.5a.5.5 0 0 0 0-1H15V4a2 2 0 0 0-2-2H7Zm6 3H7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1ZM8.5 8.5a.5.5 0 0 1 .5.5v5a.5.5 0 1 1-1 0V9a.5.5 0 0 1 .5-.5Zm3 .5v5a.5.5 0 1 0 1 0V9a.5.5 0 0 0-1 0Z"/></svg>';
-                deleteButton.title = 'Delete';
-                deleteButton.addEventListener('click', () => openDeleteEndpointModal(div));
-                div.appendChild(deleteButton);
+function _isKickBase(base){
+  return /^rtmps?:\/\/127\.0\.0\.1:19360\/[^/]+$/i.test(base || '');
+}
 
-                endpointsList.appendChild(div);
-            });
-              _refreshRestreamPanelHeight();
-        })
-        .catch(console.error);
-});
+function _matchesPlatformBase(base, platform){
+  if(platform === 'twitch') return _isTwitchBase(base);
+  if(platform === 'youtube') return _isYouTubeBase(base);
+  if(platform === 'kick') return _isKickBase(base);
+  return false;
+}
 
-// Legg til ny linje
-addEndpointBtn.addEventListener('click', () => {
-    const div = document.createElement('div');
-    div.className = 'endpoint-row';
+function _makeIconButton(className, title, iconMarkup){
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = className;
+  button.title = title;
+  button.setAttribute('aria-label', title);
+  button.innerHTML = iconMarkup;
+  return button;
+}
 
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    div.appendChild(checkbox);
+function _detectPlatformConfig(endpoint){
+  const url = String(endpoint?.url || '').trim();
+  const storedPlatform = String(endpoint?.platform || '').trim().toLowerCase();
+  const split = _splitEndpointUrl(url);
+  const base = split?.base || '';
+  const key = split?.key || '';
+  let platform = RTMP_PLATFORM_PRESETS[storedPlatform] ? storedPlatform : '';
 
-    const nameInput = document.createElement('input');
-    nameInput.type = 'text';
-    nameInput.className = 'name-input';     // <- klasse
-    nameInput.placeholder = 'Name';
-    nameInput.style.backgroundColor = '#444';
-    nameInput.style.color = 'white';
-    nameInput.style.border = '2px solid #81029b';
-    nameInput.style.padding = '5px';
-    div.appendChild(nameInput);
+  if(!platform){
+    if(_isTwitchBase(base)) platform = 'twitch';
+    else if(_isYouTubeBase(base)) platform = 'youtube';
+    else if(_isKickBase(base)) platform = 'kick';
+    else platform = 'custom';
+  }
 
-    const urlInput = document.createElement('input');
-    urlInput.type = 'text';
-    urlInput.className = 'url-input';       // <- klasse
-    urlInput.placeholder = 'rtmp://PATH/streamkey';
-    urlInput.style.backgroundColor = '#444';
-    urlInput.style.color = 'white';
-    urlInput.style.border = '2px solid #81029b';
-    urlInput.style.padding = '5px';
-    div.appendChild(urlInput);
+  if(platform === 'custom'){
+    return {
+      platform,
+      customUrl: url,
+      streamKey: '',
+      effectiveBase: '',
+      advancedOpen: false
+    };
+  }
 
-  const editButton = document.createElement('button');
-  editButton.className = 'icon-btn edit-endpoint';
-  editButton.innerHTML = '<svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M13.586 3.586a2 2 0 0 1 2.828 2.828l-8.486 8.486a1 1 0 0 1-.293.195l-3 1a1 1 0 0 1-1.266-1.265l1-3a1 1 0 0 1 .195-.293l8.486-8.486Zm1.414 1.414L6.879 13.121l-.586 1.757 1.757-.586 8.121-8.121-1.171-1.171Z"/></svg>';
-  editButton.title = 'Edit';
-  editButton.addEventListener('click', () => {
-    const enabling = nameInput.disabled;
-    nameInput.disabled = !nameInput.disabled;
-    urlInput.disabled = !urlInput.disabled;
-    if (enabling) {
-      div.classList.add('editing');
-      nameInput.style.backgroundColor = '#444';
-      nameInput.style.color = 'white';
-      nameInput.style.border = '2px solid #81029b';
-      urlInput.style.backgroundColor = '#444';
-      urlInput.style.color = 'white';
-      urlInput.style.border = '2px solid #81029b';
+  const preset = RTMP_PLATFORM_PRESETS[platform];
+  const savedBase = _normalizeRtmpBase(endpoint?.base_url_override || '');
+  const effectiveBase = savedBase || base || preset.defaultBase;
+
+  return {
+    platform,
+    customUrl: '',
+    streamKey: key,
+    effectiveBase,
+    advancedOpen: effectiveBase !== preset.defaultBase
+  };
+}
+
+function _buildPresetUrl(base, streamKey){
+  const normalizedBase = _normalizeRtmpBase(base);
+  const normalizedKey = _sanitizeStreamKey(streamKey);
+  if(!normalizedBase || !normalizedKey) return '';
+  return `${normalizedBase}/${normalizedKey}`;
+}
+
+function _getEffectiveBase(row){
+  const platform = row.querySelector('.platform-select')?.value || 'custom';
+  const baseInput = row.querySelector('.base-url-input');
+  if(platform === 'custom') return '';
+  return _normalizeRtmpBase(baseInput?.value) || RTMP_PLATFORM_PRESETS[platform].defaultBase;
+}
+
+function _getPlatformLabel(platform){
+  return RTMP_PLATFORM_PRESETS[platform]?.label || RTMP_PLATFORM_PRESETS.custom.label;
+}
+
+function _getPlatformIconMarkup(platform){
+  return RTMP_PLATFORM_PRESETS[platform]?.iconMarkup || RTMP_PLATFORM_PRESETS.custom.iconMarkup;
+}
+
+function _updateEndpointDisplays(row){
+  const nameDisplay = row.querySelector('.endpoint-name-display');
+  const platformDisplay = row.querySelector('.endpoint-platform-display');
+  const platformPicker = row.querySelector('.endpoint-platform-picker');
+  const platformPickerIcon = row.querySelector('.endpoint-platform-picker-icon');
+  const name = row.querySelector('.name-input')?.value.trim() || '';
+  const platform = row.querySelector('.platform-select')?.value || 'custom';
+  if(nameDisplay){
+    nameDisplay.textContent = name || 'Name';
+    nameDisplay.title = name || 'Name';
+    nameDisplay.classList.toggle('is-placeholder', !name);
+  }
+  if(!platformDisplay) return;
+  const platformLabel = _getPlatformLabel(platform);
+  platformDisplay.dataset.platform = platform;
+  platformDisplay.innerHTML = `<span class="endpoint-platform-icon">${_getPlatformIconMarkup(platform)}</span><span class="endpoint-platform-label">${platformLabel}</span>`;
+  platformDisplay.title = platformLabel;
+  if(platformPicker){
+    platformPicker.dataset.platform = platform;
+  }
+  if(platformPickerIcon){
+    platformPickerIcon.innerHTML = _getPlatformIconMarkup(platform);
+    platformPickerIcon.setAttribute('aria-label', platformLabel);
+    platformPickerIcon.title = platformLabel;
+  }
+}
+
+function _updateEndpointHint(row){
+  const hint = row.querySelector('.endpoint-hint');
+  const hintText = row.querySelector('.endpoint-hint-text');
+  const platform = row.querySelector('.platform-select')?.value || 'custom';
+  if(!hint || !hintText) return;
+
+  if(platform === 'custom'){
+    hintText.textContent = 'Custom RTMP/RTMPS URL';
+    return;
+  }
+
+  const effectiveBase = _getEffectiveBase(row);
+  const suffix = effectiveBase !== RTMP_PLATFORM_PRESETS[platform].defaultBase ? ' | redigert' : '';
+  hintText.textContent = `Base URL: ${effectiveBase}${suffix}`;
+}
+
+function _applyEndpointRowState(row){
+  const editing = row.dataset.editing === 'true';
+  const advancedOpen = row.dataset.advancedOpen === 'true';
+  const keyOpen = row.dataset.keyOpen === 'true';
+  const platform = row.querySelector('.platform-select')?.value || 'custom';
+  const isCustom = platform === 'custom';
+  const nameDisplay = row.querySelector('.endpoint-name-display');
+  const platformDisplay = row.querySelector('.endpoint-platform-display');
+  const nameInput = row.querySelector('.name-input');
+  const platformPicker = row.querySelector('.endpoint-platform-picker');
+  const platformSelect = row.querySelector('.platform-select');
+  const primaryWrap = row.querySelector('.endpoint-primary');
+  const streamKeyToggle = row.querySelector('.endpoint-stream-key-toggle');
+  const streamKeyInput = row.querySelector('.stream-key-input');
+  const customUrlInput = row.querySelector('.custom-url-input');
+  const baseInput = row.querySelector('.base-url-input');
+  const baseToggle = row.querySelector('.endpoint-base-toggle');
+  const hint = row.querySelector('.endpoint-hint');
+  const advancedWrap = row.querySelector('.endpoint-advanced');
+  const editButton = row.querySelector('.edit-endpoint');
+
+  nameInput.disabled = !editing;
+  platformSelect.disabled = !editing;
+  streamKeyInput.disabled = !editing || isCustom || !keyOpen;
+  customUrlInput.disabled = !editing || !isCustom;
+  baseInput.disabled = !editing || isCustom;
+
+  row.classList.toggle('editing', editing);
+  row.classList.toggle('collapsed', !editing);
+  row.classList.toggle('is-custom', isCustom);
+  nameDisplay.classList.toggle('hidden', editing);
+  platformDisplay.classList.toggle('hidden', editing);
+  nameInput.classList.toggle('hidden', !editing);
+  platformPicker.classList.toggle('hidden', !editing);
+  primaryWrap.classList.toggle('hidden', !editing);
+  hint.classList.toggle('hidden', !editing);
+  streamKeyToggle.classList.toggle('hidden', !editing || isCustom);
+  streamKeyInput.classList.toggle('hidden', !editing || isCustom || !keyOpen);
+  customUrlInput.classList.toggle('hidden', !editing || !isCustom);
+  baseToggle.classList.toggle('hidden', !editing || isCustom);
+  baseToggle.disabled = isCustom || !editing;
+  advancedWrap.classList.toggle('hidden', !editing || isCustom || !advancedOpen);
+  primaryWrap.classList.toggle('has-open-stream-key', editing && !isCustom && keyOpen);
+
+  streamKeyInput.placeholder = platform === 'youtube' ? 'YouTube stream key' : 'Stream key';
+  customUrlInput.placeholder = 'rtmp://PATH/streamkey';
+  baseInput.placeholder = RTMP_PLATFORM_PRESETS[platform]?.defaultBase || 'rtmp://PATH';
+
+  streamKeyToggle.textContent = keyOpen ? 'Skjul stream-key' : 'Stream-key';
+  streamKeyToggle.title = keyOpen ? 'Hide stream key field' : 'Edit stream key';
+  streamKeyToggle.setAttribute('aria-label', streamKeyToggle.title);
+
+  if(editButton){
+    editButton.title = editing ? 'Finish editing' : 'Edit';
+    editButton.setAttribute('aria-label', editButton.title);
+  }
+  baseToggle.title = advancedOpen ? 'Hide base URL override' : 'Edit base URL';
+  baseToggle.setAttribute('aria-label', baseToggle.title);
+
+  _updateEndpointDisplays(row);
+  _updateEndpointHint(row);
+  _refreshRestreamPanelHeight();
+}
+
+function _createEndpointRow(endpoint = {}, options = {}){
+  const hasExistingData = Boolean(endpoint?.url || endpoint?.name || endpoint?.platform);
+  const config = hasExistingData ? _detectPlatformConfig(endpoint) : {
+    platform: 'twitch',
+    customUrl: '',
+    streamKey: '',
+    effectiveBase: RTMP_PLATFORM_PRESETS.twitch.defaultBase,
+    advancedOpen: false
+  };
+  const editing = Boolean(options.editing);
+  const row = document.createElement('div');
+  row.className = 'endpoint-row';
+  row.dataset.editing = editing ? 'true' : 'false';
+  row.dataset.advancedOpen = config.advancedOpen ? 'true' : 'false';
+  row.dataset.keyOpen = editing && config.platform !== 'custom' && !config.streamKey ? 'true' : 'false';
+  row.dataset.platform = config.platform;
+
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.className = 'endpoint-enabled';
+  checkbox.checked = Boolean(endpoint.enabled);
+  checkbox.setAttribute('aria-label', 'Enable endpoint');
+  row.appendChild(checkbox);
+
+  const nameDisplay = document.createElement('div');
+  nameDisplay.className = 'endpoint-name-display endpoint-display';
+  row.appendChild(nameDisplay);
+
+  const platformDisplay = document.createElement('div');
+  platformDisplay.className = 'endpoint-platform-display endpoint-display';
+  row.appendChild(platformDisplay);
+
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.className = 'name-input endpoint-control';
+  nameInput.placeholder = 'Name';
+  nameInput.value = endpoint.name || '';
+  row.appendChild(nameInput);
+
+  const platformPicker = document.createElement('div');
+  platformPicker.className = 'endpoint-platform-picker';
+
+  const platformPickerIcon = document.createElement('span');
+  platformPickerIcon.className = 'endpoint-platform-picker-icon';
+  platformPickerIcon.setAttribute('aria-hidden', 'true');
+  platformPicker.appendChild(platformPickerIcon);
+
+  const platformSelect = document.createElement('select');
+  platformSelect.className = 'platform-select';
+  platformSelect.setAttribute('aria-label', 'Platform');
+  RTMP_PLATFORM_ORDER.forEach((platform) => {
+    const option = document.createElement('option');
+    option.value = platform;
+    option.textContent = RTMP_PLATFORM_PRESETS[platform].label;
+    if(platform === config.platform) option.selected = true;
+    platformSelect.appendChild(option);
+  });
+  platformPicker.appendChild(platformSelect);
+  row.appendChild(platformPicker);
+
+  const primaryWrap = document.createElement('div');
+  primaryWrap.className = 'endpoint-primary';
+
+  const streamKeyToggle = document.createElement('button');
+  streamKeyToggle.type = 'button';
+  streamKeyToggle.className = 'endpoint-stream-key-toggle';
+  primaryWrap.appendChild(streamKeyToggle);
+
+  const streamKeyInput = document.createElement('input');
+  streamKeyInput.type = 'password';
+  streamKeyInput.className = 'stream-key-input endpoint-control';
+  streamKeyInput.autocomplete = 'off';
+  streamKeyInput.spellcheck = false;
+  streamKeyInput.value = config.streamKey;
+  primaryWrap.appendChild(streamKeyInput);
+
+  const customUrlInput = document.createElement('input');
+  customUrlInput.type = 'text';
+  customUrlInput.className = 'custom-url-input endpoint-control';
+  customUrlInput.value = config.customUrl || '';
+  primaryWrap.appendChild(customUrlInput);
+
+  row.appendChild(primaryWrap);
+
+  const editButton = _makeIconButton('icon-btn edit-endpoint', 'Edit', EDIT_ICON_SVG);
+  row.appendChild(editButton);
+
+  const deleteButton = _makeIconButton('icon-btn delete-endpoint', 'Delete', DELETE_ICON_SVG);
+  deleteButton.addEventListener('click', () => openDeleteEndpointModal(row));
+  row.appendChild(deleteButton);
+
+  const hint = document.createElement('div');
+  hint.className = 'endpoint-hint';
+  const hintText = document.createElement('span');
+  hintText.className = 'endpoint-hint-text';
+  hint.appendChild(hintText);
+  const baseToggle = _makeIconButton('icon-btn endpoint-base-toggle', 'Edit base URL', EDIT_ICON_SVG);
+  hint.appendChild(baseToggle);
+  row.appendChild(hint);
+
+  const advancedWrap = document.createElement('div');
+  advancedWrap.className = 'endpoint-advanced';
+
+  const advancedLabel = document.createElement('div');
+  advancedLabel.className = 'endpoint-advanced-label';
+  advancedLabel.textContent = 'Base URL override';
+  advancedWrap.appendChild(advancedLabel);
+
+  const baseInput = document.createElement('input');
+  baseInput.type = 'text';
+  baseInput.className = 'base-url-input endpoint-control';
+  baseInput.value = config.effectiveBase || RTMP_PLATFORM_PRESETS[config.platform]?.defaultBase || '';
+  advancedWrap.appendChild(baseInput);
+  row.appendChild(advancedWrap);
+
+  platformSelect.addEventListener('change', () => {
+    const previousPlatform = row.dataset.platform || 'custom';
+    const nextPlatform = platformSelect.value;
+    const previousBase = _normalizeRtmpBase(baseInput.value);
+    const customSplit = _splitEndpointUrl(customUrlInput.value.trim());
+
+    if(nextPlatform === 'custom'){
+      if(!customUrlInput.value.trim()){
+        customUrlInput.value = previousPlatform === 'custom'
+          ? ''
+          : _buildPresetUrl(previousBase || RTMP_PLATFORM_PRESETS[previousPlatform].defaultBase, streamKeyInput.value);
+      }
+      row.dataset.keyOpen = 'false';
+      row.dataset.advancedOpen = 'false';
     } else {
-      div.classList.remove('editing');
-      nameInput.style.backgroundColor = '#666';
-      nameInput.style.color = 'black';
-      nameInput.style.border = '1px solid #777';
-      urlInput.style.backgroundColor = '#666';
-      urlInput.style.color = 'black';
-      urlInput.style.border = '1px solid #777';
+      const nextDefaultBase = RTMP_PLATFORM_PRESETS[nextPlatform].defaultBase;
+      if(previousPlatform === 'custom' && customSplit){
+        if(!streamKeyInput.value.trim()) streamKeyInput.value = customSplit.key;
+        baseInput.value = _matchesPlatformBase(customSplit.base, nextPlatform) ? customSplit.base : nextDefaultBase;
+      } else {
+        baseInput.value = nextDefaultBase;
+      }
+      if(!streamKeyInput.value.trim()){
+        row.dataset.keyOpen = 'true';
+      }
+    }
+
+    row.dataset.platform = nextPlatform;
+    _applyEndpointRowState(row);
+  });
+
+  nameInput.addEventListener('input', () => {
+    _updateEndpointDisplays(row);
+  });
+
+  streamKeyToggle.addEventListener('click', () => {
+    const nextOpen = row.dataset.keyOpen === 'true' ? 'false' : 'true';
+    row.dataset.keyOpen = nextOpen;
+    _applyEndpointRowState(row);
+    if(nextOpen === 'true'){
+      streamKeyInput.focus();
+      streamKeyInput.select();
     }
   });
-    div.appendChild(editButton);
 
-  const deleteButton = document.createElement('button');
-  deleteButton.className = 'icon-btn delete-endpoint';
-  deleteButton.innerHTML = '<svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M7 2a2 2 0 0 0-2 2v1H3.5a.5.5 0 0 0 0 1h.54l.82 9.016A2 2 0 0 0 6.856 17h6.288a2 2 0 0 0 1.996-1.984L15.96 6H16.5a.5.5 0 0 0 0-1H15V4a2 2 0 0 0-2-2H7Zm6 3H7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1ZM8.5 8.5a.5.5 0 0 1 .5.5v5a.5.5 0 1 1-1 0V9a.5.5 0 0 1 .5-.5Zm3 .5v5a.5.5 0 1 0 1 0V9a.5.5 0 0 0-1 0Z"/></svg>';
-  deleteButton.title = 'Delete';
-  deleteButton.addEventListener('click', () => openDeleteEndpointModal(div));
-    div.appendChild(deleteButton);
+  baseToggle.addEventListener('click', () => {
+    row.dataset.advancedOpen = row.dataset.advancedOpen === 'true' ? 'false' : 'true';
+    _applyEndpointRowState(row);
+  });
 
-    endpointsList.appendChild(div);
+  baseInput.addEventListener('input', () => {
+    _updateEndpointHint(row);
+  });
+
+  editButton.addEventListener('click', () => {
+    const nextEditing = row.dataset.editing === 'true' ? 'false' : 'true';
+    row.dataset.editing = nextEditing;
+    if(nextEditing === 'false'){
+      row.dataset.keyOpen = 'false';
+    } else if((platformSelect.value || 'custom') !== 'custom' && !streamKeyInput.value.trim()){
+      row.dataset.keyOpen = 'true';
+    }
+    _applyEndpointRowState(row);
+  });
+
+  _applyEndpointRowState(row);
+  return row;
+}
+
+function _collectEndpointPayload(row, index){
+  const name = row.querySelector('.name-input')?.value.trim() || '';
+  const platform = row.querySelector('.platform-select')?.value || 'custom';
+  const enabled = row.querySelector('.endpoint-enabled')?.checked || false;
+  const label = name || RTMP_PLATFORM_PRESETS[platform]?.label || `Row ${index + 1}`;
+
+  if(platform === 'custom'){
+    const customUrl = row.querySelector('.custom-url-input')?.value.trim() || '';
+    if(!customUrl){
+      return { error: `${label}: enter a custom RTMP URL.` };
+    }
+    if(!/^rtmps?:\/\//i.test(customUrl)){
+      return { error: `${label}: custom URL must start with rtmp:// or rtmps://.` };
+    }
+    return {
+      value: {
+        name,
+        enabled,
+        platform,
+        url: customUrl
+      }
+    };
+  }
+
+  const streamKey = _sanitizeStreamKey(row.querySelector('.stream-key-input')?.value || '');
+  if(!streamKey){
+    return { error: `${label}: stream key is required.` };
+  }
+
+  const effectiveBase = _getEffectiveBase(row);
+  if(!/^rtmps?:\/\//i.test(effectiveBase)){
+    return { error: `${label}: base URL must start with rtmp:// or rtmps://.` };
+  }
+
+  const payload = {
+    name,
+    enabled,
+    platform,
+    url: _buildPresetUrl(effectiveBase, streamKey)
+  };
+  if(effectiveBase !== RTMP_PLATFORM_PRESETS[platform].defaultBase){
+    payload.base_url_override = effectiveBase;
+  }
+  return { value: payload };
+}
+
+function _renderRestreamEndpoints(pushEndpoints = []){
+  if(!endpointsList) return;
+  endpointsList.innerHTML = '';
+  pushEndpoints.forEach((endpoint) => {
+    endpointsList.appendChild(_createEndpointRow(endpoint));
+  });
+  _refreshRestreamPanelHeight();
+}
+
+function _loadRestreamEndpoints(){
+  _openRestreamPanel();
+  fetch('/rtmp_endpoints.json')
+    .then(r => r.json())
+    .then((data) => {
+      _renderRestreamEndpoints(Array.isArray(data?.push_endpoints) ? data.push_endpoints : []);
+    })
+    .catch((err) => {
+      console.error(err);
+      showToast('Could not load restream settings.','error');
+    });
+}
+
+if(restreamBtn){
+  restreamBtn.addEventListener('click', _loadRestreamEndpoints);
+}
+
+if(addEndpointBtn){
+  addEndpointBtn.addEventListener('click', () => {
+    if(!endpointsList) return;
+    endpointsList.appendChild(_createEndpointRow({}, { editing: true }));
     _refreshRestreamPanelHeight();
-});
+  });
+}
 
-// Lagre-endepunkter (bruk klasser, ikke nth-child)
-saveRestreamBtn.addEventListener('click', () => {
-    const updated = Array.from(endpointsList.querySelectorAll('.endpoint-row'))
-        .map(div => ({
-            name: div.querySelector('.name-input')?.value.trim() || '',
-            url: div.querySelector('.url-input')?.value.trim() || '',
-            enabled: div.querySelector('input[type="checkbox"]')?.checked || false
-        }));
+if(saveRestreamBtn){
+  saveRestreamBtn.addEventListener('click', () => {
+    const rows = Array.from(endpointsList?.querySelectorAll('.endpoint-row') || []);
+    const updated = [];
+
+    for(let i = 0; i < rows.length; i++){
+      const collected = _collectEndpointPayload(rows[i], i);
+      if(collected.error){
+        showToast(collected.error, 'error');
+        return;
+      }
+      updated.push(collected.value);
+    }
 
     fetch('/api/update_push', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ push_endpoints: updated })
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ push_endpoints: updated })
     })
-    .then(res => res.json())
-    .then(resp => {
-        if (resp.status === 'ok') {
-      showToast('Restream settings saved!','success');
-            _closeRestreamPanel();
+      .then(res => res.json())
+      .then(resp => {
+        if(resp.status === 'ok'){
+          showToast('Restream settings saved!','success');
+          _closeRestreamPanel();
         } else {
-      showToast('Error: ' + (resp.error || JSON.stringify(resp)),'error');
+          showToast('Error: ' + (resp.error || JSON.stringify(resp)),'error');
         }
-    })
-    .catch(err => showToast('Communication error: ' + err,'error'));
-});
+      })
+      .catch(err => showToast('Communication error: ' + err,'error'));
+  });
+}
 
-// Skjul ved Avbryt
-cancelRestreamBtn.addEventListener('click', () => {
+if(cancelRestreamBtn){
+  cancelRestreamBtn.addEventListener('click', () => {
     _closeRestreamPanel();
-});
+  });
+}
 
 // Tooltip toggle for Platforms help
 const platformsHelpBtn = document.getElementById('platformsHelp');
