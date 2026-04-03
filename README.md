@@ -110,30 +110,28 @@ Processes are decoupled for resilience.
 
 ## 🏃 Quick Start
 
-Get up and running in 5 minutes:
+Basic setup:
 
 ```bash
-# 1. Clone and setup
 git clone https://github.com/Kimsec/Stream-Control.git
 cd Stream-Control
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-# 2. Configure
 cp .env.example .env
-nano .env  # Add your credentials
+nano .env
 
-# 3. Generate secure password
-python generate_password_hash.py
-# Add the hash to .env as LOGIN_PASSWORD_HASH
-
-# 4. Run (development)
 python app.py --dev
 python stream_guard.py
 ```
 
-Open http://localhost:5000 and start streaming! 🎉
+Notes:
+- `.env.example` includes short guidance and useful links for the required credentials and tokens.
+- Set `LOGIN_PASSWORD_HASH` before using the web UI.
+- For production, see the installation and service sections below.
+
+Then open `http://localhost:5000`.
 
 ---
 
@@ -219,19 +217,20 @@ python generate_password_hash.py
 # Install dependencies
 pip install -r requirements.txt
 
-# Configure logging in .env
-echo "LOGLEVEL=warning" >> .env
-echo "GUNICORN_ACCESSLOG=/home/kim3k/stream-control/logs/access.log" >> .env
-
-# Create logs directory
-mkdir -p logs
-
-# Install systemd service
+# Update .env first
+# Update stream-control.service.example with your real user/path
+# Then install the systemd service
 sudo cp stream-control.service.example /etc/systemd/system/stream-control.service
 sudo systemctl daemon-reload
 sudo systemctl enable stream-control
 sudo systemctl start stream-control
 ```
+
+Before starting the service:
+- Fill in `.env`
+- Set `LOGIN_PASSWORD_HASH`
+- Update `stream-control.service.example` so the paths match your server
+- Make sure your `venv` exists in the project folder
 
 **Production stack:**
 - Gunicorn with **threaded workers** (sync worker + 100 threads)
@@ -240,7 +239,6 @@ sudo systemctl start stream-control
 - Rotating access logs (10MB max)
 - systemd for auto-restart on failure
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed production setup guide and [SOLUTION.md](SOLUTION.md) for architecture decisions.
 
 ---
 
