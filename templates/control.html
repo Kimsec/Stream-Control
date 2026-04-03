@@ -159,18 +159,19 @@
             <div id="restreamOptions" style="margin-top:20px; text-align:left;">
     <h3 class="restream-heading">Platforms:</h3>
     <span id="platformsHelpWrapper" class="tooltip">
-        <button id="platformsHelp" class="tooltip-button" aria-haspopup="true" aria-expanded="false" title="RTMP format help" type="button">
+        <button id="platformsHelp" class="tooltip-button" aria-haspopup="true" aria-expanded="false" title="Platform preset help" type="button">
             <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M10 18a8 8 0 100-16 8 8 0 000 16zm-.25-4a.75.75 0 111.5 0 .75.75 0 01-1.5 0zM10 5.75a2.25 2.25 0 00-1.928 3.39.75.75 0 01-1.299.77 3.75 3.75 0 116.456-3.75c0 1.273-.705 2.443-1.832 3.102a2.25 2.25 0 00-1.121 1.49.75.75 0 01-1.456-.364 3.75 3.75 0 011.871-2.482c.614-.354.988-1.01.988-1.746A2.25 2.25 0 0010 5.75z"/></svg>
             <span class="sr-only">Help</span>
         </button>
-        <div id="platformsTooltip" class="tooltip-panel" role="dialog" aria-label="RTMP formats help">
-            <strong>RTMP formats</strong>
+        <div id="platformsTooltip" class="tooltip-panel" role="dialog" aria-label="Platform presets help">
+            <strong>Platform presets</strong>
             <ul style="margin:8px 0 0 16px; padding:0;">
-                <li><b>Twitch</b>: <code>rtmp://TWITCH-INGEST-SERVER/app/STREAM_KEY</code></li>
-                <li><b>Kick</b>: <code>rtmp://127.0.0.1:19360/PATH/STREAM_KEY</code></li>
-                <li><b>Youtube</b>: <code>rtmp://STREAM-URL/STREAM-KEY</code></li>
+                <li><b>Twitch</b>: select Twitch, then enter your <code>Stream-key</code>.</li>
+                <li><b>YouTube</b>: select YouTube, then enter your <code>Stream-key</code>.</li>
+                <li><b>Kick</b>: select Kick, then enter your <code>Stream-key</code>. Make sure stunnel is running, since Kick uses your local stunnel base.</li>
+                <li><b>Custom</b>: select Custom, then paste the full RTMP URL manually.</li>
             </ul>
-            <p style="margin:8px 0 0; color:#bdbdbd;">Replace PATH/STREAM_KEY with your values.</p>
+            <p style="margin:8px 0 0; color:#bdbdbd;">While editing, use the pencil icon next to <code>Base URL</code> if you need to override the preset URL.</p>
         </div>
     </span>
   <div id="endpointsList"><!-- JS fills here --></div>
