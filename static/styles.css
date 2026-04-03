@@ -651,12 +651,13 @@ letter-spacing:.5px;
 /* Compact restream adjustments */
 #restreamOptions h3 { font-size:18px !important; margin-bottom:10px !important; }
 .endpoint-row {
+    font-size: 15px;
     display:grid;
     grid-template-columns:auto minmax(100px,1fr) minmax(150px,180px) auto auto;
     align-items:center;
     gap:6px;
     margin-bottom:8px !important;
-    padding:10px 10px 9px;
+    padding:5px 10px 5px;
     background:#181818;
     border:1px solid #2c2c2c;
     border-radius:16px;
@@ -665,8 +666,8 @@ letter-spacing:.5px;
 .endpoint-row.editing {
     grid-template-columns:auto minmax(100px,1fr) minmax(130px,160px) auto auto auto;
     grid-auto-flow:dense;
-    gap:2px;
-    padding:4px 6px 3px;
+    gap:1px;
+    padding:2px 6px 1px;
     background:#1d1d1d;
     border-color:#6d1b85;
     box-shadow:0 0 0 1px rgba(129,2,155,.28);
@@ -817,7 +818,8 @@ letter-spacing:.5px;
     box-shadow:none;
 }
 .platform-select option {
-    color:#111;
+    color:#fff;
+    background:#2a2a2a;
 }
 .endpoint-primary {
     display:flex;
@@ -841,7 +843,6 @@ letter-spacing:.5px;
     flex-wrap:wrap;
     font-size:11px;
     color:#b4b4b4;
-    min-height:1em;
     letter-spacing:.15px;
 }
 .endpoint-hint-text {
@@ -933,7 +934,13 @@ letter-spacing:.5px;
     .endpoint-row {
         grid-template-columns:auto 42px minmax(0,1fr) auto auto;
         gap:6px 4px;
-        padding:10px 8px 9px;
+        padding:5px 8px 5px;
+    }
+    .endpoint-row.editing .stream-key-input,
+    .endpoint-row.editing .custom-url-input,
+    .endpoint-platform-picker,
+    .endpoint-control {
+        width:93%;
     }
     .endpoint-row.editing {
         grid-template-columns:auto 42px minmax(0,1fr) auto auto;
