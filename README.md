@@ -354,12 +354,15 @@ Both `app.py` and `stream_guard.py` use the same token file (`twitch_tokens.json
   - Subscribe to EventSub topics (raids, chat messages)
   - Send chat messages (Helix Chat API) for feedback / raid completion
   - Read live stream info (Helix `streams`) exposed by `GET /twitch/stream_info` for the viewer counter
+- unified-chat may also read the same token file for Twitch replies and hype train backfill
 Required scopes for full functionality (recommend granting when generating initial tokens):
 
 - user:read:chat
 - user:write:chat
 - channel:manage:broadcast (title/category updates)
+- channel:read:hype_train (unified-chat hype train backfill)
 - channel:read:subscriptions (optional future use)
+If you add a new scope, run `auth_server_SG.py` again and re-authorize so Twitch issues a refreshed token with the expanded scope set.
 If a token is revoked or expires, app.py refresh logic updates the file; guard detects validity returning to healthy automatically.
 
 
