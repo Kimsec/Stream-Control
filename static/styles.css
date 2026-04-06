@@ -98,13 +98,26 @@ body {
     overflow: hidden;
 }
 
-/* Twitch chat iframe justert for å skjule toppen */
+.chat-status-message {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    text-align: center;
+    color: #d8d8d8;
+    font-size: 16px;
+    line-height: 1.5;
+    background: #0b0b0b;
+}
+
 #twitch-chat-iframe {
     position: absolute;
-    top: -93px; /* skjul toppelementene */
+    top: 10px;
     left: 0;
     width: 100%;
-    height: calc(100% + 93px); /* strekk for å kompensere */
+    height: calc(100% + -6px);
     border: none;
 }
 
@@ -530,9 +543,20 @@ letter-spacing:.5px;
     color:#eee;
     letter-spacing:.5px;
 }
+.bot-toggle-copy{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    min-width:0;
+}
 .bot-toggle-title{
     font-size:24px;
     letter-spacing:.4px;
+}
+.bot-toggle-subtitle{
+    font-size:13px;
+    letter-spacing:.35px;
+    color:#cfcfcf;
 }
 @media (max-width:640px){
     .bot-toggle-card{flex-direction:row; gap:20px; padding:17px 0px;}
