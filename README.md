@@ -250,8 +250,8 @@ Status | OBS state, scene, health dots
 Twitch | Title/category edit, raid
 Restream | Manage push endpoints / Restream endpoints
 Stream-PC | Wake / reboot / shutdown
-Bot | Control a systemd service (optional)
-Chat | Embedded Twitch chat
+Bot | Control optional systemd chat services
+Chat | Embedded Unified Chat
 Alerts | Sounds when visiting Website
 
 Toasts provide immediate feedback.
@@ -380,6 +380,7 @@ Features:
 - Service dropdown: switch between multiple services without mixing lines. Current services:
   - stream-guard.service (StreamGuard)
   - chatbot.service (optional)
+  - unified-chat.service (optional)
   - nginx.service
   - stunnel-kick.service
   - stream-control.service (the web app itself)
@@ -393,7 +394,7 @@ API (optional):
 
 - HTTP: GET `/api/logs?service=<key>&lines=<n>` returns the initial batch of lines.
 - WS:   connect to `/ws/logs?service=<key>` to follow (`-n 0` on the backend prevents duplicate backlog).
-- Accepted service keys match the UI dropdown (e.g. `streamguard`, `chatbot`, `nginx`, `stunnel`, `streamcontrol`).
+- Accepted service keys match the UI dropdown (e.g. `streamguard`, `chatbot`, `unifiedchat`, `nginx`, `stunnel`, `streamcontrol`).
 
 Notes:
 
@@ -411,6 +412,7 @@ Data source: GET `/api/sg_status`
 Provided states (UI shows a dot + concise label):
 
 - Chatbot: `chatbot_state` (systemd unit state)
+- Unified-Chat: `unified_chat_state` (systemd unit state)
 - Nginx: `nginx_state` (systemd unit state)
 - Stunnel: `stunnel_state` (systemd unit state)
 - StreamGuard: `streamguard_state` (systemd unit state)
