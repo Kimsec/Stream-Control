@@ -1,12 +1,23 @@
 document.getElementById("year").textContent = new Date().getFullYear();
 let lastStreaming = null;
 const chatbotToggleEl = document.getElementById('chatbot-toggle');
+const unifiedChatToggleEl = document.getElementById('unified-chat-toggle');
 const advancedBtn = document.getElementById('advancedBtn');
 const advancedPanelEl = document.getElementById('advancedPanel');
 let _chatbotAutoStartEnabled = true;
 let _chatbotPrefHoldUntil = 0;
+let _unifiedChatAutoStartEnabled = false;
+let _unifiedChatPrefHoldUntil = 0;
 let _isStreamingLive = false;
 let _advancedPanelVisible = false;
+const UNIFIED_CHAT_EMBED_URL = 'https://unified-chat.kimsec.net/popout?platform_names=0';
+const UNIFIED_CHAT_RETRY_MS = 2500;
+let _chatTabActive = false;
+let _chatEmbedMounted = false;
+let _chatEmbedReady = false;
+let _chatRetryTimer = null;
+let _chatReadyRequestInFlight = false;
+let _chatIframeEl = null;
 
 function _setAdvancedPanelVisibility(show){
   _advancedPanelVisible = !!show;
@@ -38,6 +49,12 @@ function _syncChatbotToggleUI(){
   }
 }
 
+function _syncUnifiedChatToggleUI(){
+  if(unifiedChatToggleEl){
+    unifiedChatToggleEl.checked = !!_unifiedChatAutoStartEnabled;
+  }
+}
+
 function _persistChatbotAutoStart(enabled){
   return fetch('/api/chatbot_autostart', {
     method: 'POST',
@@ -54,6 +71,22 @@ function _stopChatbot(){
   return fetch('/bot/stop', { method: 'POST' }).catch(()=>{});
 }
 
+function _persistUnifiedChatAutoStart(enabled){
+  return fetch('/api/unified_chat_autostart', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled: !!enabled })
+  });
+}
+
+function _startUnifiedChat(){
+  return fetch('/unified-chat/start', { method: 'POST' }).catch(()=>{});
+}
+
+function _stopUnifiedChat(){
+  return fetch('/unified-chat/stop', { method: 'POST' }).catch(()=>{});
+}
+
 function _handleChatbotToggleChange(enabled){
   _chatbotAutoStartEnabled = !!enabled;
   _chatbotPrefHoldUntil = Date.now() + 2000;
@@ -63,6 +96,18 @@ function _handleChatbotToggleChange(enabled){
     _stopChatbot();
   } else if (_isStreamingLive) {
     _startChatbot();
+  }
+}
+
+function _handleUnifiedChatToggleChange(enabled){
+  _unifiedChatAutoStartEnabled = !!enabled;
+  _unifiedChatPrefHoldUntil = Date.now() + 2000;
+  _syncUnifiedChatToggleUI();
+  _persistUnifiedChatAutoStart(_unifiedChatAutoStartEnabled).catch(()=>{});
+  if(!_unifiedChatAutoStartEnabled){
+    _stopUnifiedChat();
+  } else if (_isStreamingLive) {
+    _startUnifiedChat();
   }
 }
 
@@ -76,6 +121,21 @@ if(chatbotToggleEl){
       if(typeof js.enabled === 'boolean' && Date.now() > _chatbotPrefHoldUntil){
         _chatbotAutoStartEnabled = js.enabled;
         _syncChatbotToggleUI();
+      }
+    })
+    .catch(()=>{});
+}
+
+if(unifiedChatToggleEl){
+  unifiedChatToggleEl.addEventListener('change', (ev) => {
+    _handleUnifiedChatToggleChange(ev.target.checked);
+  });
+  fetch('/api/unified_chat_autostart')
+    .then(r => r.ok ? r.json() : Promise.reject())
+    .then(js => {
+      if(typeof js.enabled === 'boolean' && Date.now() > _unifiedChatPrefHoldUntil){
+        _unifiedChatAutoStartEnabled = js.enabled;
+        _syncUnifiedChatToggleUI();
       }
     })
     .catch(()=>{});
@@ -134,8 +194,10 @@ tabs.forEach(tab => {
           if (footer) footer.style.display = 'none';
           const chatContainerEl = document.getElementById('chat-container');
           if (chatContainerEl) chatContainerEl.style.height = '';
+          _handleUnifiedChatTabVisibility(true);
         } else {
           if (footer) footer.style.display = '';
+          _handleUnifiedChatTabVisibility(false);
         }
     });
 });
@@ -565,26 +627,106 @@ function showRaidChannelForm() {
 }
 
 function loadTwitchChat() {
-    const chatContainer = document.getElementById('chat-container'); // moved out of if
-    fetch('/twitch/channel_info')
-        .then(res => res.json())
+    const chatContainer = document.getElementById('chat-container');
+    if (!chatContainer) return;
+    const iframe = document.createElement('iframe');
+    iframe.id = 'twitch-chat-iframe';
+    iframe.src = UNIFIED_CHAT_EMBED_URL;
+    chatContainer.innerHTML = '';
+    chatContainer.appendChild(iframe);
+    _chatIframeEl = iframe;
+    _chatEmbedMounted = true;
+    _chatEmbedReady = true;
+}
+
+function _renderUnifiedChatWaiting(message = 'Unified chat will appear automatically when stream is started'){
+  const chatContainer = document.getElementById('chat-container');
+  if (!chatContainer) return;
+  chatContainer.innerHTML = `<div class="chat-status-message">${message}</div>`;
+  _chatIframeEl = null;
+  _chatEmbedMounted = false;
+  _chatEmbedReady = false;
+}
+
+function _clearUnifiedChatRetryTimer(){
+  if(_chatRetryTimer){
+    clearTimeout(_chatRetryTimer);
+    _chatRetryTimer = null;
+  }
+}
+
+function _scheduleUnifiedChatRetry(){
+  if(!_chatTabActive || _chatRetryTimer) return;
+  _chatRetryTimer = setTimeout(() => {
+    _chatRetryTimer = null;
+    _pollUnifiedChatReadiness();
+  }, UNIFIED_CHAT_RETRY_MS);
+}
+
+function _pollUnifiedChatReadiness(){
+  if(!_chatTabActive || _chatReadyRequestInFlight) return;
+  _chatReadyRequestInFlight = true;
+  fetch('/api/unified_chat_ready', { cache: 'no-store' })
+    .then(res => res.ok ? res.json() : Promise.reject())
     .then(data => {
-      // Cache broadcaster/channel for instant reuse by Twitch player
-      try { window.__broadcasterName = (data && (data.broadcaster_name || data.channel || data.login)) || null; } catch(_) {}
-            if (data.broadcaster_name) {
-                const iframe = document.createElement('iframe');
-                iframe.id = 'twitch-chat-iframe';
-                iframe.src = `https://www.twitch.tv/embed/${data.broadcaster_name}/chat?parent=${window.location.hostname}&darkpopout`;
-                chatContainer.innerHTML = '';
-                chatContainer.appendChild(iframe);
-            } else {
-                chatContainer.textContent = 'Could not load chat. Channel name not found.';
-            }
-        })
-        .catch(err => {
-            console.error('Error loading Twitch chat:', err);
-            chatContainer.textContent = 'Error loading Twitch chat.';
-        });
+      if(!_chatTabActive) return;
+      const ready = !!(data && data.ready);
+      if(ready){
+        if(!_chatEmbedMounted){
+          loadTwitchChat();
+        }
+        _chatEmbedReady = true;
+      } else {
+        if(_chatEmbedMounted || !_chatIframeEl){
+          _renderUnifiedChatWaiting();
+        }
+        _chatEmbedReady = false;
+      }
+    })
+    .catch(() => {
+      if(!_chatTabActive) return;
+      if(_chatEmbedMounted || !_chatIframeEl){
+        _renderUnifiedChatWaiting();
+      }
+      _chatEmbedReady = false;
+    })
+    .finally(() => {
+      _chatReadyRequestInFlight = false;
+      if(_chatTabActive){
+        _scheduleUnifiedChatRetry();
+      }
+    });
+}
+
+function _resetUnifiedChatEmbedState(showWaiting = false){
+  _clearUnifiedChatRetryTimer();
+  _chatIframeEl = null;
+  _chatEmbedMounted = false;
+  _chatEmbedReady = false;
+  const chatContainer = document.getElementById('chat-container');
+  if(!chatContainer) return;
+  if(showWaiting){
+    _renderUnifiedChatWaiting();
+    if(_chatTabActive){
+      _scheduleUnifiedChatRetry();
+    }
+  } else {
+    chatContainer.innerHTML = '';
+  }
+}
+
+function _handleUnifiedChatTabVisibility(active){
+  _chatTabActive = !!active;
+  if(!_chatTabActive){
+    _clearUnifiedChatRetryTimer();
+    return;
+  }
+  if(_chatEmbedMounted && _chatEmbedReady){
+    _pollUnifiedChatReadiness();
+    return;
+  }
+  _renderUnifiedChatWaiting();
+  _pollUnifiedChatReadiness();
 }
 
 
@@ -609,9 +751,13 @@ function checkStreamStatus() {
       } else if (isStreamingNow !== lastStreaming) {
         if (isStreamingNow) {
           if (_chatbotAutoStartEnabled) _startChatbot();
+          if (_unifiedChatAutoStartEnabled) _startUnifiedChat();
+          if (_chatTabActive) _pollUnifiedChatReadiness();
         } else {
           _stopChatbot();
+          _stopUnifiedChat();
           _stopUptime();
+          _resetUnifiedChatEmbedState(_chatTabActive);
         }
         lastStreaming = isStreamingNow;
       }
@@ -694,7 +840,6 @@ function checkStreamStatus() {
 
 setInterval(checkStreamStatus, 2000);
 checkMiniPCStatus();
-loadTwitchChat(); 
 
 const audioBanner = document.getElementById('audio-permission-banner');
 const alertIframe = document.getElementById('alertbox-iframe');
@@ -1519,8 +1664,13 @@ function stopStream() {
         _chatbotAutoStartEnabled = j.chatbot_autostart;
         _syncChatbotToggleUI();
       }
+      if(typeof j.unified_chat_autostart === 'boolean' && Date.now() > _unifiedChatPrefHoldUntil){
+        _unifiedChatAutoStartEnabled = j.unified_chat_autostart;
+        _syncUnifiedChatToggleUI();
+      }
       // Chatbot mapping
       upd('hc-chatbot', j.chatbot_state || 'offline', j.chatbot_state);
+      upd('hc-unifiedchat', j.unified_chat_state || 'offline', j.unified_chat_state);
       // Nginx mapping
       upd('hc-nginx', j.nginx_state || 'offline', j.nginx_state);
   // StreamGuard service
@@ -1545,7 +1695,7 @@ function stopStream() {
     // Optional system services (stunnel / stream-control) if backend later includes states; fallback offline
   upd('hc-stunnel', j.stunnel_state || 'offline', j.stunnel_state || 'offline');
     }catch(e){
-  ['hc-chatbot','hc-nginx','hc-streamguard','hc-chatguard','hc-sls','hc-obs','hc-raidws','hc-raidsub','hc-token','hc-stunnel'].forEach(id=>{
+  ['hc-chatbot','hc-unifiedchat','hc-nginx','hc-streamguard','hc-chatguard','hc-sls','hc-obs','hc-raidws','hc-raidsub','hc-token','hc-stunnel'].forEach(id=>{
         upd(id,'error','error');
       });
     }finally{
