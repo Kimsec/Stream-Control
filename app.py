@@ -43,6 +43,7 @@ TWITCH_TOKENS_PATH     = os.getenv("TWITCH_TOKENS_PATH", os.path.join(os.path.di
 LOGIN_PASSWORD_HASH    = os.getenv("LOGIN_PASSWORD_HASH")
 HLS_ROOT               = os.getenv("HLS_ROOT", "/tmp/hls")
 CHATBOT_PREF_PATH      = os.getenv("CHATBOT_PREF_PATH", os.path.join(os.path.dirname(__file__), "chatbot_autostart.json"))
+UNIFIED_CHAT_PREF_PATH = os.getenv("UNIFIED_CHAT_PREF_PATH", os.path.join(os.path.dirname(__file__), "unified_chat_autostart.json"))
 
 # Chatbot moderation (add-only via Stream-Control UI)
 CHATBOT_BANNED_WORDS_PATH = os.getenv(
@@ -89,6 +90,8 @@ _load_ban_file()
 
 _chatbot_pref_lock = Lock()
 _chatbot_autostart_enabled = True
+_unified_chat_pref_lock = Lock()
+_unified_chat_autostart_enabled = False
 
 
 def _append_banned_word(entry: str) -> bool:
@@ -160,6 +163,40 @@ def _get_chatbot_pref() -> bool:
         return _chatbot_autostart_enabled
 
 _load_chatbot_pref_file()
+
+
+def _load_unified_chat_pref_file():
+    global _unified_chat_autostart_enabled
+    with _unified_chat_pref_lock:
+        try:
+            with open(UNIFIED_CHAT_PREF_PATH, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            _unified_chat_autostart_enabled = bool(data.get('enabled', False))
+        except Exception:
+            _unified_chat_autostart_enabled = False
+
+
+def _persist_unified_chat_pref(value: bool):
+    global _unified_chat_autostart_enabled
+    with _unified_chat_pref_lock:
+        _unified_chat_autostart_enabled = bool(value)
+        try:
+            with open(UNIFIED_CHAT_PREF_PATH, 'w', encoding='utf-8') as f:
+                json.dump({'enabled': _unified_chat_autostart_enabled}, f, indent=2)
+            try:
+                os.chmod(UNIFIED_CHAT_PREF_PATH, 0o600)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+
+def _get_unified_chat_pref() -> bool:
+    with _unified_chat_pref_lock:
+        return _unified_chat_autostart_enabled
+
+
+_load_unified_chat_pref_file()
 
 def _client_ip() -> str:
     # Cloudflare tunnel: prefer CF-Connecting-IP header
@@ -705,20 +742,24 @@ def update_push():
         return jsonify({"error": str(e)}), 500
     
 
-# --- Chatbot via systemd ---
-SERVICE_NAME = "chatbot"  # tilsvarer `systemctl start chatbot`
+# --- Service control via systemd ---
+CHATBOT_SERVICE_NAME = os.getenv("CHATBOT_SERVICE_NAME", "chatbot")
+UNIFIED_CHAT_SERVICE_NAME = os.getenv("UNIFIED_CHAT_SERVICE_NAME", "unified-chat")
 STREAM_GUARD_SERVICE_NAME = os.getenv("STREAM_GUARD_SERVICE_NAME", "stream-guard")  # systemd navn for StreamGuard
 LOG_ALLOWED_SERVICES = {
     "streamguard": STREAM_GUARD_SERVICE_NAME,
-    "chatbot": SERVICE_NAME,
+    "chatbot": CHATBOT_SERVICE_NAME,
+    "unifiedchat": UNIFIED_CHAT_SERVICE_NAME,
     "nginx": "nginx",
     "stunnel": "stunnel-kick",
     "streamcontrol": "stream-control"
 }
 
-def _systemctl(cmd: str):
-    r = subprocess.run(["sudo", "-n", "systemctl", cmd, SERVICE_NAME],
-                       capture_output=True, text=True)
+def _systemctl_unit(cmd: str, unit_name: str):
+    argv = ["systemctl", cmd, unit_name]
+    if os.geteuid() != 0:
+        argv = ["sudo", "-n"] + argv
+    r = subprocess.run(argv, capture_output=True, text=True)
     if r.returncode != 0:
         raise RuntimeError((r.stderr or r.stdout).strip())
     return (r.stdout or "").strip()
@@ -727,7 +768,7 @@ def _systemctl(cmd: str):
 @login_required
 def bot_start():
     try:
-        _systemctl("restart")  # restart = "start if not running, else reload"
+        _systemctl_unit("restart", CHATBOT_SERVICE_NAME)  # restart = "start if not running, else reload"
         return jsonify({"ok": True})
     except Exception as e:
         return (f"start error: {e}", 500)
@@ -736,7 +777,7 @@ def bot_start():
 @login_required
 def bot_stop():
     try:
-        _systemctl("stop")
+        _systemctl_unit("stop", CHATBOT_SERVICE_NAME)
         return jsonify({"ok": True})
     except Exception as e:
         return (f"stop error: {e}", 500)
@@ -744,7 +785,7 @@ def bot_stop():
 @app.route('/bot/status')
 @login_required
 def bot_status():
-    running = subprocess.run(["systemctl", "is-active", "--quiet", SERVICE_NAME]).returncode == 0
+    running = subprocess.run(["systemctl", "is-active", "--quiet", CHATBOT_SERVICE_NAME]).returncode == 0
     return jsonify({"running": running})
 
 
@@ -762,6 +803,65 @@ def set_chatbot_autostart():
         return jsonify({"error": "enabled must be boolean"}), 400
     _persist_chatbot_pref(payload['enabled'])
     return jsonify({"enabled": payload['enabled']})
+
+
+@app.route('/unified-chat/start', methods=['POST'])
+@login_required
+def unified_chat_start():
+    try:
+        _systemctl_unit("restart", UNIFIED_CHAT_SERVICE_NAME)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return (f"start error: {e}", 500)
+
+
+@app.route('/unified-chat/stop', methods=['POST'])
+@login_required
+def unified_chat_stop():
+    try:
+        _systemctl_unit("stop", UNIFIED_CHAT_SERVICE_NAME)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return (f"stop error: {e}", 500)
+
+
+@app.route('/unified-chat/status')
+@login_required
+def unified_chat_status():
+    running = subprocess.run(["systemctl", "is-active", "--quiet", UNIFIED_CHAT_SERVICE_NAME]).returncode == 0
+    return jsonify({"running": running})
+
+
+@app.route('/api/unified_chat_autostart', methods=['GET'])
+@login_required
+def get_unified_chat_autostart():
+    return jsonify({"enabled": _get_unified_chat_pref()})
+
+
+@app.route('/api/unified_chat_autostart', methods=['POST'])
+@login_required
+def set_unified_chat_autostart():
+    payload = request.get_json(silent=True) or {}
+    if 'enabled' not in payload or not isinstance(payload['enabled'], bool):
+        return jsonify({"error": "enabled must be boolean"}), 400
+    _persist_unified_chat_pref(payload['enabled'])
+    return jsonify({"enabled": payload['enabled']})
+
+
+@app.route('/api/unified_chat_ready', methods=['GET'])
+@login_required
+def unified_chat_ready():
+    running = subprocess.run(["systemctl", "is-active", "--quiet", UNIFIED_CHAT_SERVICE_NAME]).returncode == 0
+    if not running:
+        return jsonify({"running": False, "ready": False})
+
+    try:
+        response = requests.get("http://127.0.0.1:8090/health", timeout=0.75)
+        ready = response.status_code == 200
+    except Exception:
+        ready = False
+
+    return jsonify({"running": True, "ready": ready})
 
 
 @app.post('/api/banned_words')
@@ -1174,8 +1274,8 @@ def sg_status():
     chatbot_state = 'offline'
     try:
         # active?
-        active_rc = subprocess.run(["systemctl", "is-active", "--quiet", SERVICE_NAME]).returncode
-        failed_rc = subprocess.run(["systemctl", "is-failed", "--quiet", SERVICE_NAME]).returncode
+        active_rc = subprocess.run(["systemctl", "is-active", "--quiet", CHATBOT_SERVICE_NAME]).returncode
+        failed_rc = subprocess.run(["systemctl", "is-failed", "--quiet", CHATBOT_SERVICE_NAME]).returncode
         if active_rc == 0:
             chatbot_state = 'ok'
         elif failed_rc == 0:
@@ -1186,6 +1286,21 @@ def sg_status():
         chatbot_state = 'error'
     base['chatbot_state'] = chatbot_state
     base['chatbot_autostart'] = _get_chatbot_pref()
+
+    unified_chat_state = 'offline'
+    try:
+        active_rc = subprocess.run(["systemctl", "is-active", "--quiet", UNIFIED_CHAT_SERVICE_NAME]).returncode
+        failed_rc = subprocess.run(["systemctl", "is-failed", "--quiet", UNIFIED_CHAT_SERVICE_NAME]).returncode
+        if active_rc == 0:
+            unified_chat_state = 'ok'
+        elif failed_rc == 0:
+            unified_chat_state = 'error'
+        else:
+            unified_chat_state = 'offline'
+    except Exception:
+        unified_chat_state = 'error'
+    base['unified_chat_state'] = unified_chat_state
+    base['unified_chat_autostart'] = _get_unified_chat_pref()
 
     # Nginx systemd state classification
     nginx_state = 'offline'
