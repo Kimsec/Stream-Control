@@ -11,6 +11,7 @@ rtmp_endpoints.json
 # Runtime data (contains user state/bans)
 bans.json
 chatbot_autostart.json
+unified_chat_autostart.json
 
 # Logs
 logs/
