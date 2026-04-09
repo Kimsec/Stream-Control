@@ -28,19 +28,20 @@
         <span class="speaker-icon">🔊</span>
         Click here to enable sound for alerts
     </div>
-    <!-- Tab knappene -->
-    <div class="tab-container">
-        <div class="tab active" data-tab="minipc" aria-label="Settings" title="Settings">
-            <i class="fa-solid fa-gear" aria-hidden="true"></i>
-            <span class="tab-text">Settings</span>
+    <div class="tabs-shell">
+        <!-- Tab knappene -->
+        <div class="tab-container">
+            <div class="tab active" data-tab="minipc" aria-label="Settings" title="Settings">
+                <i class="fa-solid fa-gear" aria-hidden="true"></i>
+                <span class="tab-text">Settings</span>
+            </div>
+            <div class="tab" data-tab="belabox">Belabox</div>
+            <div class="tab" data-tab="obs">OBS</div>
+            <div class="tab" data-tab="chat">Chat</div>
         </div>
-        <div class="tab" data-tab="belabox">Belabox</div>
-        <div class="tab" data-tab="obs">OBS</div>
-        <div class="tab" data-tab="chat">Chat</div>
-    </div>
 
-    <!-- MiniPC-fane -->
-    <div id="minipc" class="tab-content active">
+        <!-- MiniPC-fane -->
+        <div id="minipc" class="tab-content active">
         <div class="button-container">
             <p id="minipcStatus" class="status">Checking status...</p>
             <button id="advancedBtn" type="button" aria-controls="advancedPanel" aria-expanded="false">Advanced</button>
@@ -136,10 +137,10 @@
                         <li><span class="health-name">Twitch Token</span><span class="hc-dot" id="hc-token"></span><span class="hc-label" id="hc-token-label">—</span></li>
                     </ul>
                 </div>
-    </div>
+        </div>
 
-    <!-- OBS-fane -->
-    <div id="obs" class="tab-content">
+        <!-- OBS-fane -->
+        <div id="obs" class="tab-content">
         <div class="button-container">
             <p id="streamStatus" class="status">Status: Unknown</p>
             <div id="streamUptime" class="stream-uptime hidden" aria-live="polite"></div>
@@ -195,19 +196,20 @@
     </div>
 </div>
         </div>
-    </div>
+        </div>
 
-    <!-- Belabox-fane -->
-    <div id="belabox" class="tab-content" style="padding:0;">
+        <!-- Belabox-fane -->
+        <div id="belabox" class="tab-content" style="padding:0;">
         <div id="belabox-container" style="width: 100%; height: 100vh;">
             <iframe src="https://belabox.kimsec.net" style="width: 100%; height: 100%; border: none;" allowfullscreen></iframe>
         </div>
-    </div>
-
-    <!-- Chat-fane -->
-    <div id="chat" class="tab-content">
-        <div id="chat-container">
-            <!-- Twitch Chat iFrame will be inserted here -->
+        </div>
+    
+        <!-- Chat-fane -->
+        <div id="chat" class="tab-content">
+            <div id="chat-container">
+                <!-- Twitch Chat iFrame will be inserted here -->
+            </div>
         </div>
     </div>
     <!-- Skjult alertbox for lyd/varsler -->
