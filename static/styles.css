@@ -87,8 +87,9 @@ body {
     margin: 0 auto;
 }
 
-/* Chat panel follows the tab area, not the full viewport */
-#chat.tab-content.active {
+/* Embedded panels follow the tab area, not the full viewport */
+#chat.tab-content.active,
+#belabox.tab-content.active {
     display: flex;
     flex: 1 1 auto;
     min-height: 0;
@@ -96,8 +97,14 @@ body {
     padding: 0;
 }
 
-/* Chat container fyller hele området */
-#chat-container {
+#chat.tab-content,
+#belabox.tab-content {
+    padding: 0;
+}
+
+/* Chat / Belabox containers fyller hele området */
+#chat-container,
+#belabox-container {
     position: relative;
     flex: 1 1 auto;
     min-height: 0;
@@ -106,18 +113,49 @@ body {
     overflow: hidden;
 }
 
-.chat-status-message {
+.embed-status-message {
     position: absolute;
     inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 24px;
+    background: #0b0b0b;
+}
+
+.embed-status-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    max-width: 320px;
     text-align: center;
     color: #d8d8d8;
+}
+
+.embed-status-icon {
+    width: 48px;
+    height: 48px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #9b9b9b;
+}
+
+.embed-status-icon i {
+    width: 48px;
+    height: 48px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 48px;
+    line-height: 1;
+}
+
+.embed-status-text {
     font-size: 16px;
     line-height: 1.5;
-    background: #0b0b0b;
 }
 
 #twitch-chat-iframe {
@@ -126,6 +164,14 @@ body {
     left: 0;
     width: 100%;
     height: calc(100% + 4px);
+    border: none;
+}
+
+#belabox-iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
     border: none;
 }
 
