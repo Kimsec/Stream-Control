@@ -15,7 +15,8 @@ body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', Arial, sans-serif;
     margin: 0;
     padding: 0;
-    height: 100vh;
+    min-height: 100vh;
+    min-height: 100dvh;
     display: flex;
     flex-direction: column;
 }
@@ -255,6 +256,7 @@ button:hover {
     color: #e74c3c;
 }
 footer {
+    flex-shrink: 0;
     width: 100%;
     height: 20px;
     text-align: center;
