@@ -12,12 +12,21 @@ let _isStreamingLive = false;
 let _advancedPanelVisible = false;
 const UNIFIED_CHAT_EMBED_URL = 'https://unified-chat.kimsec.net/popout?platform_names=0';
 const UNIFIED_CHAT_RETRY_MS = 2500;
+const belaboxContainerEl = document.getElementById('belabox-container');
+const BELABOX_EMBED_URL = belaboxContainerEl?.dataset.embedUrl || 'https://belabox.kimsec.net';
+const BELABOX_RETRY_MS = 2500;
 let _chatTabActive = false;
 let _chatEmbedMounted = false;
 let _chatEmbedReady = false;
 let _chatRetryTimer = null;
 let _chatReadyRequestInFlight = false;
 let _chatIframeEl = null;
+let _belaboxTabActive = false;
+let _belaboxEmbedMounted = false;
+let _belaboxEmbedReady = false;
+let _belaboxRetryTimer = null;
+let _belaboxReadyRequestInFlight = false;
+let _belaboxIframeEl = null;
 
 function _setAdvancedPanelVisibility(show){
   _advancedPanelVisible = !!show;
@@ -189,8 +198,11 @@ tabs.forEach(tab => {
           localStorage.setItem(ACTIVE_TAB_KEY, tabId);
         } catch (e) {}
 
+        const isChatTab = tabId === 'chat';
+        const isBelaboxTab = tabId === 'belabox';
+
         // Kun chat skjuler footer og lar CSS styre høyde
-        if (tabId === 'chat') {
+        if (isChatTab) {
           if (footer) footer.style.display = 'none';
           const chatContainerEl = document.getElementById('chat-container');
           if (chatContainerEl) chatContainerEl.style.height = '';
@@ -199,6 +211,8 @@ tabs.forEach(tab => {
           if (footer) footer.style.display = '';
           _handleUnifiedChatTabVisibility(false);
         }
+
+        _handleBelaboxTabVisibility(isBelaboxTab);
     });
 });
 
@@ -639,13 +653,50 @@ function loadTwitchChat() {
     _chatEmbedReady = true;
 }
 
+function _renderEmbedWaiting(container, message) {
+  if (!container) return;
+  container.innerHTML = `
+    <div class="embed-status-message">
+      <div class="embed-status-card">
+        <span class="embed-status-icon" aria-hidden="true">
+          <i class="fa-solid fa-satellite-dish"></i>
+        </span>
+        <div class="embed-status-text">${message}</div>
+      </div>
+    </div>`;
+}
+
 function _renderUnifiedChatWaiting(message = 'Unified chat will appear automatically when stream is started'){
   const chatContainer = document.getElementById('chat-container');
   if (!chatContainer) return;
-  chatContainer.innerHTML = `<div class="chat-status-message">${message}</div>`;
+  _renderEmbedWaiting(chatContainer, message);
   _chatIframeEl = null;
   _chatEmbedMounted = false;
   _chatEmbedReady = false;
+}
+
+function loadBelabox() {
+  const belaboxContainer = document.getElementById('belabox-container');
+  if (!belaboxContainer) return;
+  const iframe = document.createElement('iframe');
+  iframe.id = 'belabox-iframe';
+  iframe.src = BELABOX_EMBED_URL;
+  iframe.setAttribute('allowfullscreen', '');
+  iframe.loading = 'lazy';
+  belaboxContainer.innerHTML = '';
+  belaboxContainer.appendChild(iframe);
+  _belaboxIframeEl = iframe;
+  _belaboxEmbedMounted = true;
+  _belaboxEmbedReady = true;
+}
+
+function _renderBelaboxWaiting(message = 'Belabox will appear automatically when online'){
+  const belaboxContainer = document.getElementById('belabox-container');
+  if (!belaboxContainer) return;
+  _renderEmbedWaiting(belaboxContainer, message);
+  _belaboxIframeEl = null;
+  _belaboxEmbedMounted = false;
+  _belaboxEmbedReady = false;
 }
 
 function _clearUnifiedChatRetryTimer(){
@@ -655,12 +706,27 @@ function _clearUnifiedChatRetryTimer(){
   }
 }
 
+function _clearBelaboxRetryTimer(){
+  if(_belaboxRetryTimer){
+    clearTimeout(_belaboxRetryTimer);
+    _belaboxRetryTimer = null;
+  }
+}
+
 function _scheduleUnifiedChatRetry(){
   if(!_chatTabActive || _chatRetryTimer) return;
   _chatRetryTimer = setTimeout(() => {
     _chatRetryTimer = null;
     _pollUnifiedChatReadiness();
   }, UNIFIED_CHAT_RETRY_MS);
+}
+
+function _scheduleBelaboxRetry(){
+  if(!_belaboxTabActive || _belaboxRetryTimer) return;
+  _belaboxRetryTimer = setTimeout(() => {
+    _belaboxRetryTimer = null;
+    _pollBelaboxReadiness();
+  }, BELABOX_RETRY_MS);
 }
 
 function _pollUnifiedChatReadiness(){
@@ -698,6 +764,41 @@ function _pollUnifiedChatReadiness(){
     });
 }
 
+function _pollBelaboxReadiness(){
+  if(!_belaboxTabActive || _belaboxReadyRequestInFlight) return;
+  _belaboxReadyRequestInFlight = true;
+  fetch('/api/belabox_ready', { cache: 'no-store' })
+    .then(res => res.ok ? res.json() : Promise.reject())
+    .then(data => {
+      if(!_belaboxTabActive) return;
+      const ready = !!(data && data.ready);
+      if(ready){
+        if(!_belaboxEmbedMounted){
+          loadBelabox();
+        }
+        _belaboxEmbedReady = true;
+      } else {
+        if(_belaboxEmbedMounted || !_belaboxIframeEl){
+          _renderBelaboxWaiting();
+        }
+        _belaboxEmbedReady = false;
+      }
+    })
+    .catch(() => {
+      if(!_belaboxTabActive) return;
+      if(_belaboxEmbedMounted || !_belaboxIframeEl){
+        _renderBelaboxWaiting();
+      }
+      _belaboxEmbedReady = false;
+    })
+    .finally(() => {
+      _belaboxReadyRequestInFlight = false;
+      if(_belaboxTabActive){
+        _scheduleBelaboxRetry();
+      }
+    });
+}
+
 function _resetUnifiedChatEmbedState(showWaiting = false){
   _clearUnifiedChatRetryTimer();
   _chatIframeEl = null;
@@ -715,6 +816,23 @@ function _resetUnifiedChatEmbedState(showWaiting = false){
   }
 }
 
+function _resetBelaboxEmbedState(showWaiting = false){
+  _clearBelaboxRetryTimer();
+  _belaboxIframeEl = null;
+  _belaboxEmbedMounted = false;
+  _belaboxEmbedReady = false;
+  const belaboxContainer = document.getElementById('belabox-container');
+  if(!belaboxContainer) return;
+  if(showWaiting){
+    _renderBelaboxWaiting();
+    if(_belaboxTabActive){
+      _scheduleBelaboxRetry();
+    }
+  } else {
+    belaboxContainer.innerHTML = '';
+  }
+}
+
 function _handleUnifiedChatTabVisibility(active){
   _chatTabActive = !!active;
   if(!_chatTabActive){
@@ -727,6 +845,20 @@ function _handleUnifiedChatTabVisibility(active){
   }
   _renderUnifiedChatWaiting();
   _pollUnifiedChatReadiness();
+}
+
+function _handleBelaboxTabVisibility(active){
+  _belaboxTabActive = !!active;
+  if(!_belaboxTabActive){
+    _clearBelaboxRetryTimer();
+    return;
+  }
+  if(_belaboxEmbedMounted && _belaboxEmbedReady){
+    _pollBelaboxReadiness();
+    return;
+  }
+  _renderBelaboxWaiting();
+  _pollBelaboxReadiness();
 }
 
 
