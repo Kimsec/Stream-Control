@@ -50,6 +50,7 @@ CHATBOT_BANNED_WORDS_PATH = os.getenv(
     "CHATBOT_BANNED_WORDS_PATH",
     "/home/kim3k/chatbot/banned_words.txt",
 )
+BELABOX_EMBED_URL = os.getenv("BELABOX_EMBED_URL", "https://belabox.kimsec.net").strip() or "https://belabox.kimsec.net"
 
 
 BAN_MAX_ATTEMPTS       = int(os.getenv("BAN_MAX_ATTEMPTS", "3"))
@@ -306,7 +307,7 @@ def login():
 @app.route('/')
 @login_required
 def home():
-    return render_template('control.html')
+    return render_template('control.html', belabox_embed_url=BELABOX_EMBED_URL)
 
 @app.route('/bans')
 @login_required
@@ -862,6 +863,18 @@ def unified_chat_ready():
         ready = False
 
     return jsonify({"running": True, "ready": ready})
+
+
+@app.route('/api/belabox_ready', methods=['GET'])
+@login_required
+def belabox_ready():
+    try:
+        response = requests.get(BELABOX_EMBED_URL, timeout=0.75)
+        ready = response.ok
+    except Exception:
+        ready = False
+
+    return jsonify({"ready": ready})
 
 
 @app.post('/api/banned_words')
