@@ -1696,8 +1696,9 @@ letter-spacing:.5px;
 }
 .demo-input:focus{outline:none;border-color:#81029b;box-shadow:0 0 0 2px rgba(129,2,155,.3);}
 .demo-input::placeholder{color:#c4c4c4;}
-.inline-form{display:none;margin-top:10px;}
+.inline-form{display:none;margin-top:10px;text-align:center;}
 .inline-form.visible{display:block;}
+.inline-form .demo-input{display:block;margin:0 auto;}
 .form-actions{margin-top:6px;display:flex;justify-content:center;gap:6px;}
 .form-actions button{font-size:16px;padding:8px 16px;width:auto !important;max-width:none !important;margin:4px;}
 
@@ -1868,8 +1869,8 @@ letter-spacing:.5px;
                 <div class="sg-card-title">Tools</div>
                 <button id="showTitleBtn" onclick="toggleForm('titleForm')"><i class="fa-solid fa-pen" aria-hidden="true"></i>&nbsp; Update Stream Title</button>
                 <div id="titleForm" class="inline-form">
-                    <input class="demo-input" type="text" placeholder="Enter new stream title"><br><br>
-                    <input class="demo-input" type="text" placeholder="Search for category">
+                    <input class="demo-input" type="text" placeholder="Enter new stream title" value="Lets tan ☀️"><br><br>
+                    <input class="demo-input" type="text" placeholder="Search for category" value="Just Chatting">
                     <div class="form-actions">
                         <button onclick="toast('Stream title updated');toggleForm('titleForm')">Apply</button>
                         <button onclick="toggleForm('titleForm')">Cancel</button>
