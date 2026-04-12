@@ -28,6 +28,18 @@ let _belaboxRetryTimer = null;
 let _belaboxReadyRequestInFlight = false;
 let _belaboxIframeEl = null;
 
+function _syncAppHeight(){
+  const docEl = document.documentElement;
+  if(!docEl) return;
+  const viewport = window.visualViewport;
+  const h = Math.round((viewport && viewport.height) || window.innerHeight || docEl.clientHeight || 0);
+  if(h > 0){
+    docEl.style.setProperty('--app-height', `${h}px`);
+  }
+}
+
+_syncAppHeight();
+
 function _setAdvancedPanelVisibility(show){
   _advancedPanelVisible = !!show;
   if(advancedPanelEl){
@@ -2274,9 +2286,14 @@ function _unwatchPreviewHeight(){
 }
 
 window.addEventListener('resize', () => {
+  _syncAppHeight();
   if(_previewVisible) _syncPreviewOffset();
   else _syncHlsPreviewMaxWidth();
 });
+
+if(window.visualViewport){
+  window.visualViewport.addEventListener('resize', _syncAppHeight);
+}
 
 function _getCachedChannel(){
   const fresh = _channelInfoCache.data && (Date.now() - _channelInfoCache.ts) < CHANNEL_INFO_TTL_MS;
