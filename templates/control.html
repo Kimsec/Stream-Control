@@ -35,45 +35,65 @@
                 <i class="fa-solid fa-gear" aria-hidden="true"></i>
                 <span class="tab-text">Settings</span>
             </div>
-            <div class="tab" data-tab="belabox">Belabox</div>
-            <div class="tab" data-tab="obs">OBS</div>
-            <div class="tab" data-tab="chat">Chat</div>
+            <div class="tab" data-tab="belabox" aria-label="Belabox" title="Belabox">
+                <i class="fa-solid fa-satellite-dish" aria-hidden="true"></i>
+                <span class="tab-text">Belabox</span>
+            </div>
+            <div class="tab" data-tab="obs" aria-label="OBS" title="OBS">
+                <i class="fa-solid fa-video" aria-hidden="true"></i>
+                <span class="tab-text">OBS</span>
+            </div>
+            <div class="tab" data-tab="chat" aria-label="Chat" title="Chat">
+                <i class="fa-solid fa-comments" aria-hidden="true"></i>
+                <span class="tab-text">Chat</span>
+            </div>
         </div>
 
         <!-- MiniPC-fane -->
         <div id="minipc" class="tab-content active">
         <div class="button-container">
-            <p id="minipcStatus" class="status">Checking status...</p>
-            <button id="advancedBtn" type="button" aria-controls="advancedPanel" aria-expanded="false">Advanced</button>
+            <div id="minipcStatusHero" class="status-hero is-off">
+                <div class="status-hero__icon"><i class="fa-solid fa-desktop"></i></div>
+                <div class="status-hero__body">
+                    <div class="status-hero__label">Streaming PC</div>
+                    <div class="status-hero__value"><span id="minipcStatus" class="off">Checking...</span></div>
+                </div>
+            </div>
+            <div class="sg-card">
+            <button id="advancedBtn" type="button" aria-controls="advancedPanel" aria-expanded="false"><i class="fa-solid fa-sliders" aria-hidden="true"></i>&nbsp; Advanced</button>
             <div id="advancedPanel" class="advanced-panel" aria-hidden="true">
                 <div class="advanced-group" aria-label="MiniPC">
                     <div class="advanced-group-title">MiniPC</div>
-                    <button id="turnOnBtn" onclick="turnOnMiniPC()">Turn On</button>
-                    <button id="turnOffBtn" class="advanced-action-btn" onclick="openPowerConfirm('shutdown')">Shutdown</button>
-                    <button id="restartBtn" class="advanced-action-btn" onclick="openPowerConfirm('restart')">Restart</button>
+                    <button id="turnOnBtn" onclick="turnOnMiniPC()"><i class="fa-solid fa-power-off" aria-hidden="true"></i>&nbsp; Turn On</button>
+                    <button id="turnOffBtn" class="advanced-action-btn" onclick="openPowerConfirm('shutdown')"><i class="fa-solid fa-circle-stop" aria-hidden="true"></i>&nbsp; Shutdown</button>
+                    <button id="restartBtn" class="advanced-action-btn" onclick="openPowerConfirm('restart')"><i class="fa-solid fa-rotate-right" aria-hidden="true"></i>&nbsp; Restart</button>
                 </div>
 
                 <div class="advanced-group" aria-label="Chat">
                     <div class="advanced-group-title">Chat</div>
-                    <div class="bot-toggle-card" role="group" aria-label="Unified-Chat auto-start">
-                        <div class="bot-toggle-copy">
-                            <span class="bot-toggle-title">Unified chat</span>
-                        </div>
-                        <label class="sg-switch" aria-label="Toggle Unified-Chat auto-start">
-                            <input type="checkbox" id="unified-chat-toggle">
-                            <span class="sg-switch__slider" aria-hidden="true"></span>
-                        </label>
-                    </div>
-                    <div class="bot-toggle-card" role="group" aria-label="Chatbot auto-start">
-                        <div class="bot-toggle-copy">
-                            <span class="bot-toggle-title">Chatbot</span>
-                        </div>
-                        <label class="sg-switch" aria-label="Toggle chatbot auto-start">
-                            <input type="checkbox" id="chatbot-toggle">
-                            <span class="sg-switch__slider" aria-hidden="true"></span>
-                        </label>
-                    </div>
-                    <button id="showBannedWordInput" class="advanced-action-btn" onclick="showBannedWordForm()">Ban word/sentence</button>
+                    <label class="advanced-action-btn bot-toggle-card" for="unified-chat-toggle">
+                        <span class="bot-toggle-group">
+                            <span class="bot-toggle-copy">
+                                <span class="bot-toggle-title"><i class="fa-solid fa-comments" aria-hidden="true"></i>Unified chat</span>
+                            </span>
+                            <span class="sg-switch">
+                                <input type="checkbox" id="unified-chat-toggle">
+                                <span class="sg-switch__slider" aria-hidden="true"></span>
+                            </span>
+                        </span>
+                    </label>
+                    <label class="advanced-action-btn bot-toggle-card" for="chatbot-toggle">
+                        <span class="bot-toggle-group">
+                            <span class="bot-toggle-copy">
+                                <span class="bot-toggle-title"><i class="fa-solid fa-robot" aria-hidden="true"></i>Chatbot</span>
+                            </span>
+                            <span class="sg-switch">
+                                <input type="checkbox" id="chatbot-toggle">
+                                <span class="sg-switch__slider" aria-hidden="true"></span>
+                            </span>
+                        </span>
+                    </label>
+                    <button id="showBannedWordInput" class="advanced-action-btn" onclick="showBannedWordForm()"><i class="fa-solid fa-ban" aria-hidden="true"></i>&nbsp; Ban word/sentence</button>
                     <div id="bannedWordForm" style="display: none; margin-top: 10px;">
                         <input type="text" id="bannedWordInput" placeholder="Enter word or sentence" style="font-size: 20px; padding: 8px; width: 100%; max-width: 300px; text-align: center;" maxlength="200">
                         <div style="margin-top: 2px; display: flex; justify-content: center; gap: 1px;">
@@ -85,13 +105,17 @@
 
                 <div class="advanced-group" aria-label="Backend">
                     <div class="advanced-group-title">Backend</div>
-                    <button id="repairBtn" class="advanced-action-btn" onclick="openRepairConfirm()">Repair backend</button>
-                    <button id="ipBansBtn" class="advanced-action-btn" onclick="window.location.href='/bans'">IP bans</button>
+                    <button id="repairBtn" class="advanced-action-btn" onclick="openRepairConfirm()"><i class="fa-solid fa-wrench" aria-hidden="true"></i>&nbsp; Repair backend</button>
+                    <button id="ipBansBtn" class="advanced-action-btn" onclick="window.location.href='/bans'"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i>&nbsp; IP bans</button>
                 </div>
             </div>
-            <button id="logsBtn" onclick="toggleLogsPanel()">Logs</button>
+            </div>
+
+            <div class="sg-card">
+            <button id="logsBtn" class="advanced-action-btn" onclick="toggleLogsPanel()"><i class="fa-solid fa-terminal" aria-hidden="true"></i>&nbsp; Logs</button>
+            </div>
         </div>
-            
+
         <div id="logs-panel" class="logs-panel hidden" aria-label="Service logs">
             <div class="logs-header">
                 <div class="logs-service-wrap">
@@ -120,7 +144,6 @@
             </div>
             <div id="logs-output" class="logs-output" role="log" aria-live="off"></div>
         </div>
-        <br>
                 <div id="health-panel" class="health-panel">
                     <h3 class="health-title">Health checks:</h3>
                     <ul class="health-list">
@@ -142,17 +165,49 @@
         <!-- OBS-fane -->
         <div id="obs" class="tab-content">
         <div class="button-container">
-            <p id="streamStatus" class="status">Status: Unknown</p>
-            <div id="streamUptime" class="stream-uptime hidden" aria-live="polite"></div>
-            <p id="obsScene" class="status">Scene: Unknown</p>
-            <p id="obsViewers" class="status" style="margin-top:2px;">Viewers: —</p>
-            <button id="startStreamBtn" onclick="sendRequest('/obs/start_stream')">Start Stream</button>
-            <button id="stopStreamBtn" onclick="openStopStreamModal()" style="display:none;">Stop Stream</button>
-            <button onclick="switchToLive()">Switch to 'LIVE' Scene</button>
-            <button onclick="switchToBRB()">Switch to 'BRB' Scene</button>
-            <button id="showStreamTitleInput" onclick="showStreamTitleForm()">Update Stream Title</button>
-            <button id="showRaidChannelInput" onclick="showRaidChannelForm()">Raid Channel</button>
-            <button id="restreamBtn">Restream ⚙️</button>
+            <div id="obsStatusHero" class="obs-hero is-off">
+                <div class="obs-hero__top">
+                    <div class="obs-hero__icon"><i class="fa-solid fa-video"></i></div>
+                    <div class="obs-hero__headline">
+                        <div class="obs-hero__label">Stream</div>
+                        <div class="obs-hero__value"><span id="streamStatus" class="off">Offline</span></div>
+                    </div>
+                    <div id="streamUptime" class="obs-hero__uptime hidden" aria-live="polite">00:00:00</div>
+                </div>
+                <div class="obs-hero__divider"></div>
+                <div class="obs-hero__stats">
+                    <div class="obs-hero__stat">
+                        <i class="fa-solid fa-clapperboard"></i>
+                        <div class="obs-hero__stat-body">
+                            <span class="obs-hero__stat-label">Scene</span>
+                            <span class="obs-hero__stat-value" id="obsScene">—</span>
+                        </div>
+                    </div>
+                    <div class="obs-hero__stat">
+                        <i class="fa-solid fa-eye"></i>
+                        <div class="obs-hero__stat-body">
+                            <span class="obs-hero__stat-label">Viewers</span>
+                            <span class="obs-hero__stat-value" id="obsViewers">—</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sg-card">
+            <div class="sg-card-title">Broadcast</div>
+            <button id="startStreamBtn" class="btn-start-stream" onclick="sendRequest('/obs/start_stream')"><i class="fa-solid fa-play" aria-hidden="true"></i>&nbsp; Start Stream</button>
+            <button id="stopStreamBtn" class="btn-stop-stream" onclick="openStopStreamModal()" style="display:none;"><i class="fa-solid fa-stop" aria-hidden="true"></i>&nbsp; Stop Stream</button>
+            <div class="action-grid">
+                <button onclick="switchToLive()"><i class="fa-solid fa-circle-dot" aria-hidden="true"></i>&nbsp; LIVE Scene</button>
+                <button onclick="switchToBRB()"><i class="fa-solid fa-pause" aria-hidden="true"></i>&nbsp; BRB Scene</button>
+            </div>
+            </div>
+
+            <div class="sg-card">
+            <div class="sg-card-title">Tools</div>
+            <button id="showStreamTitleInput" onclick="showStreamTitleForm()"><i class="fa-solid fa-pen" aria-hidden="true"></i>&nbsp; Update Stream Title</button>
+            <button id="showRaidChannelInput" onclick="showRaidChannelForm()"><i class="fa-solid fa-bullhorn" aria-hidden="true"></i>&nbsp; Raid Channel</button>
+            <button id="restreamBtn"><i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i>&nbsp; Restream</button>
             <div id="streamTitleForm" style="display: none; margin-top: 10px;">
                 <input type="text" id="streamTitleInput" placeholder="Enter new stream title" style="font-size: 20px; padding: 8px; width: 100%; max-width: 300px; text-align: center;">
                 <input type="text" id="categorySearchInput" placeholder="Search for category" style="font-size: 20px; padding: 8px; width: 100%; max-width: 300px; text-align: center; margin-top: 10px;" oninput="searchCategory()">
@@ -168,6 +223,7 @@
                     <button style="font-size: 24px; padding: 5px 10px;" onclick="applyRaid()">Raid</button>
                     <button style="font-size: 24px; padding: 5px 10px;" onclick="cancelRaid()">Cancel</button>
                 </div>
+            </div>
             </div>
                     <!-- Skjult seksjon for restream-opsjoner -->
             <div id="restreamOptions" style="margin-top:20px; text-align:left;">
