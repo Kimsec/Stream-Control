@@ -208,20 +208,20 @@
             <button id="showStreamTitleInput" onclick="showStreamTitleForm()"><i class="fa-solid fa-pen" aria-hidden="true"></i>&nbsp; Update Stream Title</button>
             <button id="showRaidChannelInput" onclick="showRaidChannelForm()"><i class="fa-solid fa-bullhorn" aria-hidden="true"></i>&nbsp; Raid Channel</button>
             <button id="restreamBtn"><i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i>&nbsp; Restream</button>
-            <div id="streamTitleForm" style="display: none; margin-top: 10px;">
-                <input type="text" id="streamTitleInput" placeholder="Enter new stream title" style="font-size: 20px; padding: 8px; width: 100%; max-width: 300px; text-align: center;">
-                <input type="text" id="categorySearchInput" placeholder="Search for category" style="font-size: 20px; padding: 8px; width: 100%; max-width: 300px; text-align: center; margin-top: 10px;" oninput="searchCategory()">
+            <div id="streamTitleForm" style="display: none; margin-top: 10px; text-align: center;">
+                <input type="text" id="streamTitleInput" placeholder="Enter new stream title" style="font-size: 16px; padding: 10px 14px; width: 80%; max-width: 260px; text-align: center; display: block; margin: 0 auto; background:#141414; border:1px solid #262626; border-radius:12px; color:#eee; font-family:inherit; outline:none;">
+                <input type="text" id="categorySearchInput" placeholder="Search for category" style="font-size: 16px; padding: 10px 14px; width: 80%; max-width: 260px; text-align: center; display: block; margin: 10px auto 0; background:#141414; border:1px solid #262626; border-radius:12px; color:#eee; font-family:inherit; outline:none;" oninput="searchCategory()">
                 <div id="categoryResults" style="margin-top: 10px;"></div>
-                <div style="margin-top: 2px; display: flex; justify-content: center; gap: 1px;">
-                    <button style="font-size: 24px; padding: 5px 10px;" onclick="applyStreamTitle()">Apply</button>
-                    <button style="font-size: 24px; padding: 5px 10px;" onclick="cancelStreamTitle()">Cancel</button>
+                <div>
+                    <button onclick="applyStreamTitle()">Apply</button>
+                    <button onclick="cancelStreamTitle()">Cancel</button>
                 </div>
             </div>
-            <div id="raidChannelForm" style="display: none; margin-top: 10px;">
-                <input type="text" id="raidChannelInput" placeholder="Enter channel name to raid" style="font-size: 20px; padding: 8px; width: 100%; max-width: 300px; text-align: center;">
-                <div style="margin-top: 2px; display: flex; justify-content: center; gap: 1px;">
-                    <button style="font-size: 24px; padding: 5px 10px;" onclick="applyRaid()">Raid</button>
-                    <button style="font-size: 24px; padding: 5px 10px;" onclick="cancelRaid()">Cancel</button>
+            <div id="raidChannelForm" style="display: none; margin-top: 10px; text-align: center;">
+                <input type="text" id="raidChannelInput" placeholder="Enter channel name to raid" style="font-size: 16px; padding: 10px 14px; width: 80%; max-width: 260px; text-align: center; display: block; margin: 0 auto; background:#141414; border:1px solid #262626; border-radius:12px; color:#eee; font-family:inherit; outline:none;">
+                <div>
+                    <button onclick="applyRaid()">Raid</button>
+                    <button onclick="cancelRaid()">Cancel</button>
                 </div>
             </div>
             </div>
