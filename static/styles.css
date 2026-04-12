@@ -3,6 +3,7 @@ html {
 }
 
 :root {
+    --app-height: 100dvh;
     --preview-offset: 0px; /* dynamisk høyde for stream-preview */
     /* HLS preview max-width is driven by JS for smooth, resolution-independent scaling.
        JS sets this to a % value between 60% (maximized) and 100% (small window). */
@@ -16,7 +17,7 @@ body {
     margin: 0;
     padding: 0;
     min-height: 100vh;
-    min-height: 100dvh;
+    min-height: var(--app-height, 100dvh);
     display: flex;
     flex-direction: column;
 }
@@ -216,7 +217,7 @@ button {
 }
 .tab {
     color: #888;
-    padding: 8px 6px 9px;
+    padding: 7px 6px 4px;
     cursor: pointer;
     font-size: 11px;
     letter-spacing: .6px;
@@ -390,6 +391,7 @@ button:disabled:hover {
 }
 footer {
     flex-shrink: 0;
+    margin-top: auto;
     width: 100%;
     height: 20px;
     text-align: center;
@@ -414,7 +416,7 @@ color: #ff3b3b;
     }
     .tab {
         font-size: 12px;
-        padding: 10px 10px 11px;
+        padding: 9px 10px 5px;
     }
     .tab i {
         font-size: 18px;
@@ -798,6 +800,27 @@ letter-spacing:.5px;
     padding-right:12px;
 }
 
+/* Form action buttons (Apply/Cancel, Raid/Cancel) inside sg-cards */
+#obs .button-container .sg-card #streamTitleForm > div:last-of-type,
+#obs .button-container .sg-card #raidChannelForm > div{
+    display:flex;
+    justify-content:center;
+    gap:14px;
+    margin-top:10px;
+}
+#obs .button-container .sg-card #streamTitleForm > div:last-of-type{
+    margin-top:2px;
+}
+#obs .button-container .sg-card #streamTitleForm > div:last-of-type button,
+#obs .button-container .sg-card #raidChannelForm > div button{
+    width:auto;
+    max-width:none;
+    flex:0 0 auto;
+    padding:11px 26px;
+    font-size:17px;
+    margin:0;
+}
+
 /* Settings + OBS tab: full-width buttons inside sg-cards (width handled by .sg-card max-width) */
 #minipc .button-container button,
 #minipc .button-container .bot-toggle-card,
@@ -813,7 +836,7 @@ letter-spacing:.5px;
 #minipc .button-container .sg-card .advanced-panel button,
 #minipc .button-container .sg-card .advanced-panel .bot-toggle-card{margin:6px 0;}
 #minipc .advanced-group-title{
-    font-size:12px;
+    font-size:14px;
     letter-spacing:1.4px;
     text-transform:uppercase;
     opacity:.55;
