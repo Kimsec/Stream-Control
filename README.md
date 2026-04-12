@@ -315,7 +315,7 @@ Command | Action
 `!start` | Start the stream (ignored if already live) then switch to `STARTING_SCENE_NAME` (if set) or stay on current
 `!live`  | Switch to `LIVE_SCENE_NAME`
 `!brb`   | Switch to `BRB_SCENE_NAME`
-`!fix`   | Switch to BRB then back to LIVE after ~1 second
+`!fix`   | Switch to BRB then back to LIVE after ~2 seconds
 `!stop`  | Stop the current stream
 
 Environment variables affecting commands:
