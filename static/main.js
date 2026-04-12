@@ -261,15 +261,21 @@ function checkMiniPCStatus() {
         .then(res => res.json())
         .then(data => {
             const el = document.getElementById("minipcStatus");
-      if (data.status === "on") {
-        setStatusWithDot(el, 'Status: ON', true);
-        el.className = "status on";
+            const hero = document.getElementById("minipcStatusHero");
+            const isOn = data.status === "on";
+            if (el) {
+                el.textContent = isOn ? 'Online' : 'Offline';
+                el.className = isOn ? 'on' : 'off';
+            }
+            if (hero) {
+                hero.classList.toggle('is-on', isOn);
+                hero.classList.toggle('is-off', !isOn);
+            }
+            if (isOn) {
                 document.getElementById("turnOnBtn").style.display = "none";
                 document.getElementById("restartBtn").style.display = "inline-block";
                 document.getElementById("turnOffBtn").style.display = "inline-block";
             } else {
-        setStatusWithDot(el, 'Status: OFF', false);
-        el.className = "status off";
                 document.getElementById("turnOnBtn").style.display = "inline-block";
                 document.getElementById("restartBtn").style.display = "none";
                 document.getElementById("turnOffBtn").style.display = "none";
@@ -920,27 +926,30 @@ function checkStreamStatus() {
         _updateViewerUI(false, 0);
       }
 
-      // --- UI oppdatering som før ---
+      // --- UI oppdatering ---
       const status = document.getElementById("streamStatus");
       const scene = document.getElementById("obsScene");
+      const hero = document.getElementById("obsStatusHero");
 
       if (data.error) {
-        status.textContent = "Error reading OBS";
+        if (status) { status.textContent = "Error"; status.className = "off"; }
+        if (scene) scene.textContent = "—";
+        if (hero) { hero.classList.remove('is-live','is-on'); hero.classList.add('is-off'); }
         _stopUptime();
-        status.className = "status off";
-        scene.textContent = "Scene: —";
         startBtn.style.display = "inline-block";
         stopBtn.style.display = "none";
-        if (switchToLiveBtn) switchToLiveBtn.style.display = "inline-block";
-        if (switchToBRBBtn) switchToBRBBtn.style.display = "none";
         return;
       }
 
-      setStatusWithDot(status, isStreamingNow ? 'Status: Live' : 'Status: Offline', isStreamingNow);
-      status.className = "status " + (isStreamingNow ? "on" : "off");
-
-            const currentScene = (data.currentScene || "—");
-            scene.textContent = "Scene: " + currentScene;
+      if (status) {
+        status.textContent = isStreamingNow ? 'LIVE' : 'Offline';
+        status.className = isStreamingNow ? 'live' : 'off';
+      }
+      if (hero) {
+        hero.classList.toggle('is-live', isStreamingNow);
+        hero.classList.toggle('is-off', !isStreamingNow);
+      }
+      if (scene) scene.textContent = (data.currentScene || '—');
 
       if (isStreamingNow) {
         startBtn.style.display = "none";
@@ -950,23 +959,18 @@ function checkStreamStatus() {
         stopBtn.style.display = "none";
       }
 
-      if (data.currentScene === "LIVE") {
-        if (switchToLiveBtn) switchToLiveBtn.style.display = "none";
-        if (switchToBRBBtn) switchToBRBBtn.style.display = "inline-block";
-      } else {
-        if (switchToLiveBtn) switchToLiveBtn.style.display = "inline-block";
-        if (switchToBRBBtn) switchToBRBBtn.style.display = "none";
-      }
     })
     .catch(err => {
       console.error('Stream status error:', err);
       _stopUptime();
       startBtn.style.display = "inline-block";
       stopBtn.style.display = "none";
-      if (switchToLiveBtn) switchToLiveBtn.style.display = "inline-block";
-      if (switchToBRBBtn) switchToBRBBtn.style.display = "none";
-      document.getElementById("streamStatus").textContent = "Error";
-      document.getElementById("obsScene").textContent = "Scene: —";
+      const status = document.getElementById("streamStatus");
+      const scene = document.getElementById("obsScene");
+      const hero = document.getElementById("obsStatusHero");
+      if (status) { status.textContent = "Error"; status.className = "off"; }
+      if (scene) scene.textContent = "—";
+      if (hero) { hero.classList.remove('is-live','is-on'); hero.classList.add('is-off'); }
     });
 }
 
@@ -1013,7 +1017,7 @@ window.__VIEWER_POLL_MS = 10000; // 10s
 function _updateViewerUI(isLive, count){
   const el = document.getElementById('obsViewers');
   if(!el) return;
-  el.textContent = 'Viewers: ' + (isLive ? (count ?? 0) : '—');
+  el.textContent = isLive ? String(count ?? 0) : '—';
 }
 
 function _pollViewersOnce(){
