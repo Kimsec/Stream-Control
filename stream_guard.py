@@ -281,7 +281,7 @@ async def _chat_guard():
                                         if _obs_switch_scene_safe(BRB_SCENE_NAME):
                                             _send_chat_message("[bot] Changed to 'BRB'")
                                     elif cmd == "!fix":
-                                        if _obs_fix_brb_then_live(BRB_SCENE_NAME, LIVE_SCENE_NAME, delay_sec=1.0):
+                                        if _obs_fix_brb_then_live(BRB_SCENE_NAME, LIVE_SCENE_NAME, delay_sec=2.0):
                                             _send_chat_message("[bot] trying to fix.")
                                     elif cmd == "!stop":
                                         if _obs_stop_stream():
@@ -503,7 +503,7 @@ def _obs_start_and_switch(scene: str) -> bool:
         print("[ChatGuard][OBS] start_and_switch failed:", e)
         return False
 
-def _obs_fix_brb_then_live(brb_scene: str, live_scene: str, delay_sec: float = 1.0) -> bool:
+def _obs_fix_brb_then_live(brb_scene: str, live_scene: str, delay_sec: float = 2.0) -> bool:
     try:
         c = connect_obs()
         switch_scene(c, brb_scene)
