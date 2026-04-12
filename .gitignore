@@ -36,3 +36,5 @@ __pycache__/
 static/styles.css.bak
 stream-control.code-workspace
 static/main.js.bak
+templates/control copy.html
+static/styles copy.css
