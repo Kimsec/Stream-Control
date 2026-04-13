@@ -817,7 +817,7 @@ letter-spacing:.5px;
     max-width:none;
     flex:0 0 auto;
     padding:11px 26px;
-    font-size:17px;
+    font-size:16px;
     margin:0;
 }
 
@@ -1043,14 +1043,21 @@ letter-spacing:.5px;
 #restreamOptions h3{margin-top:0; font-size:22px; letter-spacing:.6px;}
 #restreamOptions{
     background:#121212;
-    border:1px solid #2a2a2a;
+    border:0 solid #2a2a2a;
     border-radius:20px;
     box-shadow:0 6px 22px -6px rgba(0,0,0,.6),0 0 0 1px #1b1b1b;
-    padding:22px 24px 28px;
+    padding:0 24px;
     width:100%;
     max-width:400px;
-    margin:12px auto;
+    margin:0 auto;
     box-sizing:border-box;
+    position:relative;
+    overflow:hidden;
+    max-height:0;
+    opacity:0;
+    pointer-events:none;
+    text-align:left;
+    transition:max-height .32s ease, opacity .32s ease, padding .32s ease, margin .32s ease, border-width .32s ease;
 }
 @media (min-width:600px){
     #restreamOptions{width:80%; max-width:600px;}
@@ -1058,17 +1065,21 @@ letter-spacing:.5px;
     .obs-hero,
     .status-hero,
     .health-panel{max-width:425px;}
-    position:relative;
-    overflow:hidden;
-    max-height:0;
-    opacity:0;
-    pointer-events:none;
-    transition:max-height .32s ease, opacity .32s ease;
 }
 #restreamOptions.restream-open{
+    margin:20px auto 12px;
+    padding:22px 24px 28px;
+    border-width:1px;
     opacity:1;
     pointer-events:auto;
     overflow:visible;
+}
+#restreamOptions.restream-closing{
+    margin:0 auto;
+    padding:0 24px;
+    border-width:0;
+    overflow:hidden;
+    pointer-events:none;
 }
 #restreamOptions button{border-radius:14px;}
 #restreamOptions { --restream-gap:6px; }
