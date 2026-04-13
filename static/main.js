@@ -1206,6 +1206,23 @@ if(restreamBtn){
   restreamBtn.setAttribute('aria-expanded','false');
 }
 
+function _handleRestreamPanelTransition(ev){
+  if(!restreamOptions || ev.target !== restreamOptions || ev.propertyName !== 'max-height') return;
+  if(restreamOptions.classList.contains('restream-closing')){
+    restreamOptions.classList.remove('restream-open', 'restream-closing');
+    restreamOptions.style.maxHeight = '0px';
+    restreamOptions.style.opacity = '0';
+    return;
+  }
+  if(restreamOptions.classList.contains('restream-open')){
+    restreamOptions.style.maxHeight = restreamOptions.scrollHeight + 'px';
+  }
+}
+
+if(restreamOptions){
+  restreamOptions.addEventListener('transitionend', _handleRestreamPanelTransition);
+}
+
 function _refreshRestreamPanelHeight(){
   if(restreamOptions && restreamOptions.classList.contains('restream-open')){
     restreamOptions.style.maxHeight = restreamOptions.scrollHeight + 'px';
@@ -1214,10 +1231,12 @@ function _refreshRestreamPanelHeight(){
 
 function _openRestreamPanel(){
   if(!restreamOptions) return;
+  restreamOptions.classList.remove('restream-closing');
   restreamOptions.classList.add('restream-open');
   restreamOptions.setAttribute('aria-hidden','false');
+  const targetHeight = restreamOptions.scrollHeight;
   requestAnimationFrame(()=>{
-    restreamOptions.style.maxHeight = restreamOptions.scrollHeight + 'px';
+    restreamOptions.style.maxHeight = targetHeight + 'px';
     restreamOptions.style.opacity = '1';
   });
   if(restreamBtn){
@@ -1229,14 +1248,13 @@ function _openRestreamPanel(){
 function _closeRestreamPanel(){
   if(!restreamOptions) return;
   restreamOptions.setAttribute('aria-hidden','true');
-  const prevTransition = restreamOptions.style.transition;
-  restreamOptions.style.transition = 'none';
-  void restreamOptions.offsetHeight;
-  restreamOptions.classList.remove('restream-open');
-  restreamOptions.style.maxHeight = '0px';
-  restreamOptions.style.opacity = '0';
-  void restreamOptions.offsetHeight;
-  restreamOptions.style.transition = prevTransition;
+  restreamOptions.style.maxHeight = restreamOptions.scrollHeight + 'px';
+  restreamOptions.style.opacity = '1';
+  restreamOptions.classList.add('restream-closing');
+  requestAnimationFrame(()=>{
+    restreamOptions.style.maxHeight = '0px';
+    restreamOptions.style.opacity = '0';
+  });
   if(restreamBtn){
     restreamBtn.style.display = 'inline-block';
     restreamBtn.setAttribute('aria-expanded','false');
