@@ -228,7 +228,7 @@ button {
 }
 .tab {
     color: #888;
-    padding: 8px 6px 9px;
+    padding: 6px 6px 9px;
     cursor: pointer;
     font-size: 11px;
     letter-spacing: .6px;
@@ -426,7 +426,7 @@ color: #ff3b3b;
     }
     .tab {
         font-size: 12px;
-        padding: 10px 10px 11px;
+        padding: 6px 10px 5px;
     }
     .tab i {
         font-size: 18px;
@@ -1040,6 +1040,12 @@ letter-spacing:.5px;
     max-width:400px;
     margin:12px auto;
     box-sizing:border-box;
+    position:relative;
+    overflow:hidden;
+    max-height:0;
+    opacity:0;
+    pointer-events:none;
+    transition:max-height .32s ease, opacity .32s ease;
 }
 @media (min-width:600px){
     #restreamOptions{width:80%; max-width:600px;}
@@ -1047,12 +1053,6 @@ letter-spacing:.5px;
     .obs-hero,
     .status-hero,
     .health-panel{max-width:425px;}
-    position:relative;
-    overflow:hidden;
-    max-height:0;
-    opacity:0;
-    pointer-events:none;
-    transition:max-height .32s ease, opacity .32s ease;
 }
 #restreamOptions.restream-open{
     opacity:1;
