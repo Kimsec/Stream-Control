@@ -217,7 +217,7 @@ button {
 }
 .tab {
     color: #888;
-    padding: 7px 6px 4px;
+    padding: 6px 6px 4px;
     cursor: pointer;
     font-size: 11px;
     letter-spacing: .6px;
@@ -416,7 +416,7 @@ color: #ff3b3b;
     }
     .tab {
         font-size: 12px;
-        padding: 9px 10px 5px;
+        padding: 6px 10px 5px;
     }
     .tab i {
         font-size: 18px;
