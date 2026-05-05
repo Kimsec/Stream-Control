@@ -51,6 +51,7 @@ CHATBOT_BANNED_WORDS_PATH = os.getenv(
     "/home/kim3k/chatbot/banned_words.txt",
 )
 BELABOX_EMBED_URL = os.getenv("BELABOX_EMBED_URL", "https://belabox.kimsec.net").strip() or "https://belabox.kimsec.net"
+SRT_LINK_URL = os.getenv("SRT_LINK_URL", "").strip()
 
 
 BAN_MAX_ATTEMPTS       = int(os.getenv("BAN_MAX_ATTEMPTS", "3"))
@@ -193,7 +194,14 @@ def _persist_unified_chat_pref(value: bool):
 
 
 def _get_unified_chat_pref() -> bool:
+    global _unified_chat_autostart_enabled
     with _unified_chat_pref_lock:
+        try:
+            with open(UNIFIED_CHAT_PREF_PATH, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            _unified_chat_autostart_enabled = bool(data.get('enabled', False))
+        except Exception:
+            _unified_chat_autostart_enabled = False
         return _unified_chat_autostart_enabled
 
 
@@ -307,7 +315,9 @@ def login():
 @app.route('/')
 @login_required
 def home():
-    return render_template('control.html', belabox_embed_url=BELABOX_EMBED_URL)
+    return render_template('control.html',
+                           belabox_embed_url=BELABOX_EMBED_URL,
+                           srt_link_url=SRT_LINK_URL)
 
 @app.route('/bans')
 @login_required
@@ -381,6 +391,7 @@ def start_stream():
         cl = connect_obs()
         cl.start_stream()
         cl.set_current_program_scene("Starting soon")
+        _sync_unified_chat_for_stream(True)
         return "Stream started and switched to 'Starting soon' scene", 200
     except Exception as e:
         return f"Error starting stream: {e}", 500
@@ -393,6 +404,7 @@ def stop_stream():
         cl = connect_obs()
         cl.stop_stream()
         cl.set_current_program_scene("Offline")
+        _sync_unified_chat_for_stream(False)
         return "Stream stopped successfully", 200
     except Exception as e:
         return f"Error stopping stream: {e}", 500
@@ -406,6 +418,7 @@ def obs_stream_status():
         resp_s = cl.get_stream_status()
         # Bruk kun 'output_active' uten å sjekke data
         is_streaming = resp_s.output_active
+        _sync_unified_chat_for_stream(is_streaming)
 
         server_now_unix = int(time.time())
 
@@ -764,6 +777,30 @@ def _systemctl_unit(cmd: str, unit_name: str):
     if r.returncode != 0:
         raise RuntimeError((r.stderr or r.stdout).strip())
     return (r.stdout or "").strip()
+
+
+def _systemctl_unit_is_active(unit_name: str) -> bool:
+    return subprocess.run(
+        ["systemctl", "is-active", "--quiet", unit_name],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    ).returncode == 0
+
+
+def _sync_unified_chat_for_stream(is_streaming: bool):
+    """Keep unified-chat aligned with stream state and the UI preference."""
+    desired_running = bool(is_streaming and _get_unified_chat_pref())
+    try:
+        running = _systemctl_unit_is_active(UNIFIED_CHAT_SERVICE_NAME)
+        if running == desired_running:
+            return
+
+        cmd = "restart" if desired_running else "stop"
+        _systemctl_unit(cmd, UNIFIED_CHAT_SERVICE_NAME)
+        state = "started" if desired_running else "stopped"
+        print(f"[UnifiedChat] {state} after stream state sync")
+    except Exception as e:
+        print("[UnifiedChat] stream state sync failed:", e)
 
 @app.route('/bot/start', methods=['POST'])
 @login_required
