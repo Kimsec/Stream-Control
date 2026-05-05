@@ -94,11 +94,11 @@
                         </span>
                     </label>
                     <button id="showBannedWordInput" class="advanced-action-btn" onclick="showBannedWordForm()"><i class="fa-solid fa-ban" aria-hidden="true"></i>&nbsp; Ban word/sentence</button>
-                    <div id="bannedWordForm" style="display: none; margin-top: 10px;">
-                        <input type="text" id="bannedWordInput" placeholder="Enter word or sentence" style="font-size: 20px; padding: 8px; width: 100%; max-width: 300px; text-align: center;" maxlength="200">
-                        <div style="margin-top: 2px; display: flex; justify-content: center; gap: 1px;">
-                            <button style="font-size: 24px; padding: 5px 10px;" onclick="applyBannedWord()">Add</button>
-                            <button style="font-size: 24px; padding: 5px 10px;" onclick="cancelBannedWord()">Cancel</button>
+                    <div id="bannedWordForm" style="display: none; margin-top: 10px; text-align: center;">
+                        <input type="text" id="bannedWordInput" placeholder="Enter word or sentence" style="font-size: 16px; padding: 10px 14px; width: 80%; max-width: 260px; text-align: center; display: block; margin: 0 auto; background:#141414; border:1px solid #262626; border-radius:12px; color:#eee; font-family:inherit; outline:none;" maxlength="200">
+                        <div>
+                            <button onclick="applyBannedWord()">Add</button>
+                            <button onclick="cancelBannedWord()">Cancel</button>
                         </div>
                     </div>
                 </div>
@@ -108,6 +108,17 @@
                     <button id="repairBtn" class="advanced-action-btn" onclick="openRepairConfirm()"><i class="fa-solid fa-wrench" aria-hidden="true"></i>&nbsp; Repair backend</button>
                     <button id="ipBansBtn" class="advanced-action-btn" onclick="window.location.href='/bans'"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i>&nbsp; IP bans</button>
                 </div>
+
+                {% if srt_link_url %}
+                <div class="advanced-group" aria-label="Stream link">
+                    <div class="advanced-group-title">Stream link</div>
+                    <button id="srtLinkToggleBtn" class="advanced-action-btn" type="button" aria-controls="srtLinkPanel" aria-expanded="false"><i class="fa-solid fa-link" aria-hidden="true"></i>&nbsp; SRT link</button>
+                    <div id="srtLinkPanel" class="srt-link-panel" aria-hidden="true">
+                        <div id="srtLinkDisplay" class="srt-link-display" data-srt-url="{{ srt_link_url }}">{{ srt_link_url }}</div>
+                        <button id="srtLinkCopyBtn" class="advanced-action-btn" type="button"><i class="fa-solid fa-copy" aria-hidden="true"></i>&nbsp; Copy link</button>
+                    </div>
+                </div>
+                {% endif %}
             </div>
             </div>
 
