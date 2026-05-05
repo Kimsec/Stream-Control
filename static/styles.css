@@ -121,7 +121,7 @@ body {
     align-items: center;
     justify-content: center;
     padding: 24px;
-    background: #0b0b0b;
+    background: #000000;
 }
 
 .embed-status-card {
@@ -800,23 +800,25 @@ letter-spacing:.5px;
     padding-right:12px;
 }
 
-/* Form action buttons (Apply/Cancel, Raid/Cancel) inside sg-cards */
-#obs .button-container .sg-card #streamTitleForm > div:last-of-type,
-#obs .button-container .sg-card #raidChannelForm > div{
+/* Form action buttons (Apply/Cancel, Raid/Cancel) */
+#obs #streamTitleForm > div:last-of-type,
+#obs #raidChannelForm > div,
+#minipc #bannedWordForm > div{
     display:flex;
     justify-content:center;
     gap:14px;
     margin-top:10px;
 }
-#obs .button-container .sg-card #streamTitleForm > div:last-of-type{
-    margin-top:2px;
+#obs #streamTitleForm > div:last-of-type{
+    margin-top:4px;
 }
-#obs .button-container .sg-card #streamTitleForm > div:last-of-type button,
-#obs .button-container .sg-card #raidChannelForm > div button{
+#obs #streamTitleForm > div:last-of-type button,
+#obs #raidChannelForm > div button,
+#minipc #bannedWordForm > div button{
     width:auto;
     max-width:none;
     flex:0 0 auto;
-    padding:11px 26px;
+    padding:9px 20px;
     font-size:16px;
     margin:0;
 }
@@ -908,6 +910,52 @@ letter-spacing:.5px;
   }
 }
 
+.srt-link-panel{
+    width:100%;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    max-height:0;
+    opacity:0;
+    overflow:hidden;
+    pointer-events:none;
+    transform:translateY(-6px);
+    transition:max-height .28s ease, opacity .28s ease, transform .28s ease;
+}
+.srt-link-panel.expanded{
+    max-height:400px;
+    opacity:1;
+    pointer-events:auto;
+    transform:translateY(0);
+}
+.srt-link-display{
+    width:100%;
+    max-width:600px;
+    margin:10px auto 6px;
+    padding:16px 20px;
+    background:#121212;
+    border:1px solid #2a2a2a;
+    border-radius:14px;
+    box-shadow:0 6px 22px -6px rgba(0,0,0,.6),0 0 0 1px #1b1b1b;
+    color:#ddd;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size:14px;
+    line-height:1.5;
+    letter-spacing:.2px;
+    text-align:center;
+    word-break:break-all;
+    overflow-wrap:anywhere;
+    user-select:text;
+    -webkit-user-select:text;
+    box-sizing:border-box;
+}
+@media (max-width: 780px){
+    .srt-link-display{
+        width:100%;
+        font-size:13px;
+        padding:13px 14px;
+    }
+}
 
 .bot-toggle-card{
     display:flex;
