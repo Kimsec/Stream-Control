@@ -64,6 +64,54 @@ if(advancedBtn && advancedPanelEl){
   });
 }
 
+const srtLinkToggleBtn = document.getElementById('srtLinkToggleBtn');
+const srtLinkPanel = document.getElementById('srtLinkPanel');
+const srtLinkCopyBtn = document.getElementById('srtLinkCopyBtn');
+const srtLinkDisplay = document.getElementById('srtLinkDisplay');
+
+function _setSrtLinkPanelVisibility(show){
+  if(!srtLinkPanel) return;
+  if(show){
+    srtLinkPanel.classList.add('expanded');
+    srtLinkPanel.setAttribute('aria-hidden','false');
+    if(srtLinkToggleBtn) srtLinkToggleBtn.setAttribute('aria-expanded','true');
+  } else {
+    srtLinkPanel.classList.remove('expanded');
+    srtLinkPanel.setAttribute('aria-hidden','true');
+    if(srtLinkToggleBtn) srtLinkToggleBtn.setAttribute('aria-expanded','false');
+  }
+}
+
+if(srtLinkToggleBtn && srtLinkPanel){
+  srtLinkToggleBtn.addEventListener('click', () => {
+    _setSrtLinkPanelVisibility(!srtLinkPanel.classList.contains('expanded'));
+  });
+}
+
+if(srtLinkCopyBtn){
+  srtLinkCopyBtn.addEventListener('click', async () => {
+    const url = (srtLinkDisplay && srtLinkDisplay.dataset.srtUrl) || '';
+    if(!url){ showToast('No SRT link configured', 'error'); return; }
+    try {
+      if(navigator.clipboard && window.isSecureContext){
+        await navigator.clipboard.writeText(url);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = url;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+      }
+      showToast('SRT link copied', 'success');
+    } catch(e){
+      showToast('Copy failed', 'error');
+    }
+  });
+}
+
 function _syncChatbotToggleUI(){
   if(chatbotToggleEl){
     chatbotToggleEl.checked = !!_chatbotAutoStartEnabled;
