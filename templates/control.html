@@ -94,8 +94,8 @@
                         </span>
                     </label>
                     <button id="showBannedWordInput" class="advanced-action-btn" onclick="showBannedWordForm()"><i class="fa-solid fa-ban" aria-hidden="true"></i>&nbsp; Ban word/sentence</button>
-                    <div id="bannedWordForm" style="display: none; margin-top: 10px; text-align: center;">
-                        <input type="text" id="bannedWordInput" placeholder="Enter word or sentence" style="font-size: 16px; padding: 10px 14px; width: 80%; max-width: 260px; text-align: center; display: block; margin: 0 auto; background:#141414; border:1px solid #262626; border-radius:12px; color:#eee; font-family:inherit; outline:none;" maxlength="200">
+                    <div id="bannedWordForm" class="form-panel">
+                        <input type="text" id="bannedWordInput" class="form-panel__input" placeholder="Enter word or sentence" maxlength="200">
                         <div>
                             <button onclick="applyBannedWord()">Add</button>
                             <button onclick="cancelBannedWord()">Cancel</button>
@@ -207,7 +207,7 @@
             <div class="sg-card">
             <div class="sg-card-title">Broadcast</div>
             <button id="startStreamBtn" class="btn-start-stream" onclick="sendRequest('/obs/start_stream')"><i class="fa-solid fa-play" aria-hidden="true"></i>&nbsp; Start Stream</button>
-            <button id="stopStreamBtn" class="btn-stop-stream" onclick="openStopStreamModal()" style="display:none;"><i class="fa-solid fa-stop" aria-hidden="true"></i>&nbsp; Stop Stream</button>
+            <button id="stopStreamBtn" class="btn-stop-stream initially-hidden" onclick="openStopStreamModal()"><i class="fa-solid fa-stop" aria-hidden="true"></i>&nbsp; Stop Stream</button>
             <div class="action-grid">
                 <button onclick="switchToLive()"><i class="fa-solid fa-circle-dot" aria-hidden="true"></i>&nbsp; LIVE Scene</button>
                 <button onclick="switchToBRB()"><i class="fa-solid fa-pause" aria-hidden="true"></i>&nbsp; BRB Scene</button>
@@ -219,17 +219,17 @@
             <button id="showStreamTitleInput" onclick="showStreamTitleForm()"><i class="fa-solid fa-pen" aria-hidden="true"></i>&nbsp; Update Stream Title</button>
             <button id="showRaidChannelInput" onclick="showRaidChannelForm()"><i class="fa-solid fa-bullhorn" aria-hidden="true"></i>&nbsp; Raid Channel</button>
             <button id="restreamBtn"><i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i>&nbsp; Restream</button>
-            <div id="streamTitleForm" style="display: none; margin-top: 10px; text-align: center;">
-                <input type="text" id="streamTitleInput" placeholder="Enter new stream title" style="font-size: 16px; padding: 10px 14px; width: 80%; max-width: 260px; text-align: center; display: block; margin: 0 auto; background:#141414; border:1px solid #262626; border-radius:12px; color:#eee; font-family:inherit; outline:none;">
-                <input type="text" id="categorySearchInput" placeholder="Search for category" style="font-size: 16px; padding: 10px 14px; width: 80%; max-width: 260px; text-align: center; display: block; margin: 10px auto 0; background:#141414; border:1px solid #262626; border-radius:12px; color:#eee; font-family:inherit; outline:none;" oninput="searchCategory()">
-                <div id="categoryResults" style="margin-top: 10px;"></div>
+            <div id="streamTitleForm" class="form-panel">
+                <input type="text" id="streamTitleInput" class="form-panel__input" placeholder="Enter new stream title">
+                <input type="text" id="categorySearchInput" class="form-panel__input" placeholder="Search for category" oninput="searchCategory()">
+                <div id="categoryResults" class="form-panel__results"></div>
                 <div>
                     <button onclick="applyStreamTitle()">Apply</button>
                     <button onclick="cancelStreamTitle()">Cancel</button>
                 </div>
             </div>
-            <div id="raidChannelForm" style="display: none; margin-top: 10px; text-align: center;">
-                <input type="text" id="raidChannelInput" placeholder="Enter channel name to raid" style="font-size: 16px; padding: 10px 14px; width: 80%; max-width: 260px; text-align: center; display: block; margin: 0 auto; background:#141414; border:1px solid #262626; border-radius:12px; color:#eee; font-family:inherit; outline:none;">
+            <div id="raidChannelForm" class="form-panel">
+                <input type="text" id="raidChannelInput" class="form-panel__input" placeholder="Enter channel name to raid">
                 <div>
                     <button onclick="applyRaid()">Raid</button>
                     <button onclick="cancelRaid()">Cancel</button>
@@ -246,13 +246,13 @@
         </button>
         <div id="platformsTooltip" class="tooltip-panel" role="dialog" aria-label="Platform presets help">
             <strong>Platform presets</strong>
-            <ul style="margin:8px 0 0 16px; padding:0;">
+            <ul class="tooltip-list">
                 <li><b>Twitch</b>: select Twitch, then enter your <code>Stream-key</code>.</li>
                 <li><b>YouTube</b>: select YouTube, then enter your <code>Stream-key</code>.</li>
                 <li><b>Kick</b>: select Kick, then enter your <code>Stream-key</code>. Make sure stunnel is running, since Kick uses your local stunnel base.</li>
                 <li><b>Custom</b>: select Custom, then paste the full RTMP URL manually.</li>
             </ul>
-            <p style="margin:8px 0 0; color:#bdbdbd;">While editing, use the pencil icon next to <code>Base URL</code> if you need to override the preset URL.</p>
+            <p class="tooltip-note">While editing, use the pencil icon next to <code>Base URL</code> if you need to override the preset URL.</p>
         </div>
     </span>
   <div id="endpointsList"><!-- JS fills here --></div>
@@ -266,7 +266,7 @@
         </div>
 
         <!-- Belabox-fane -->
-        <div id="belabox" class="tab-content" style="padding:0;">
+        <div id="belabox" class="tab-content">
         <div id="belabox-container" data-embed-url="{{ belabox_embed_url }}"></div>
         </div>
     
@@ -282,20 +282,20 @@
         src="about:blank"
         data-src="https://streamelements.com/overlay/60455a2e72dba40e07a947fe/cMQQvgWouVphlojJFWRDPUMTeCiorUTgYJzZqgCu29V3jY0p"
         allow="autoplay"
-        style="width:1px;height:1px;opacity:0;position:absolute;left:-9999px;"
+        class="hidden-alert-frame"
         tabindex="-1"></iframe>
 
     <iframe id="onoff-alert-audio"
         src="/overlay"
         allow="autoplay"
-        style="width:1px;height:1px;opacity:0;position:absolute;left:-9999px;"
+        class="hidden-alert-frame"
         tabindex="-1"></iframe>
 
     <!-- Stop Stream Modal -->
     <div id="stop-stream-modal" class="sg-modal hidden">
       <div class="sg-modal__dialog">
-        <h2 style="margin-top:0;">Stop Stream?</h2>
-        <p style="margin:6px 0 18px;font-size:18px;">Are you sure you want to stop the stream in OBS?</p>
+        <h2 class="sg-modal__title">Stop Stream?</h2>
+        <p class="sg-modal__text">Are you sure you want to stop the stream in OBS?</p>
         <div class="sg-modal__actions">
           <button id="confirm-stop-stream" class="danger">Yes, stop</button>
           <button id="cancel-stop-stream" class="secondary">Cancel</button>
@@ -305,9 +305,9 @@
 
         <!-- Power (Restart/Shutdown) Modal -->
         <div id="power-confirm-modal" class="sg-modal hidden">
-            <div class="sg-modal__dialog" style="border-color:#81029b;">
-                <h2 id="power-modal-title" style="margin-top:0;">Confirm Action</h2>
-                <p id="power-modal-text" style="margin:6px 0 18px;font-size:18px;">Are you sure?</p>
+            <div class="sg-modal__dialog sg-modal__dialog--accent">
+                <h2 id="power-modal-title" class="sg-modal__title">Confirm Action</h2>
+                <p id="power-modal-text" class="sg-modal__text">Are you sure?</p>
                 <div class="sg-modal__actions">
                     <button id="power-modal-confirm" class="danger">Confirm</button>
                     <button id="power-modal-cancel" class="secondary">Cancel</button>
@@ -317,9 +317,9 @@
 
         <!-- Repair Backend Modal -->
         <div id="repair-confirm-modal" class="sg-modal hidden">
-            <div class="sg-modal__dialog" style="border-color:#81029b;">
-                <h2 style="margin-top:0;">Repair Backend?</h2>
-                <p style="margin:6px 0 18px;font-size:18px;">This will restart Nginx and StreamGuard services. Are you sure?</p>
+            <div class="sg-modal__dialog sg-modal__dialog--accent">
+                <h2 class="sg-modal__title">Repair Backend?</h2>
+                <p class="sg-modal__text">This will restart Nginx and StreamGuard services. Are you sure?</p>
                 <div class="sg-modal__actions">
                     <button id="repair-modal-confirm" class="danger">Confirm Repair</button>
                     <button id="repair-modal-cancel" class="secondary">Cancel</button>
@@ -329,9 +329,9 @@
 
         <!-- Delete Endpoint Modal -->
         <div id="delete-endpoint-modal" class="sg-modal hidden" aria-hidden="true" role="dialog" aria-labelledby="del-endpoint-title">
-            <div class="sg-modal__dialog" style="border-color:#81029b;">
-                <h2 id="del-endpoint-title" style="margin-top:0;">Delete Endpoint?</h2>
-                <p style="margin:6px 0 18px;font-size:17px;">This restream target will be removed. Continue?</p>
+            <div class="sg-modal__dialog sg-modal__dialog--accent">
+                <h2 id="del-endpoint-title" class="sg-modal__title">Delete Endpoint?</h2>
+                <p class="sg-modal__text sg-modal__text--compact">This restream target will be removed. Continue?</p>
                 <div class="sg-modal__actions">
                     <button id="confirm-delete-endpoint" class="danger">Delete</button>
                     <button id="cancel-delete-endpoint" class="secondary">Cancel</button>
