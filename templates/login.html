@@ -1,9 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <link rel="apple-touch-icon" sizes="192x192" href="https://kimsec.net/download/caxyhh/icon-192.png">
-    <link rel="icon" type="image/png" href="https://kimsec.net/download/caxyhh/icon_logo.png" />
-    <link rel="manifest" href="https://kimsec.net/download/caxyhh/manifest.json">
+    {% if pwa_icon_base_url %}
+    <link rel="apple-touch-icon" sizes="192x192" href="{{ pwa_icon_base_url }}/icon-192.png">
+    <link rel="icon" type="image/png" href="{{ pwa_icon_base_url }}/icon_logo.png" />
+    {% endif %}
+    <link rel="manifest" href="{{ url_for('manifest') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" />
     <title>Password Required</title>
     <meta charset="UTF-8">
@@ -96,7 +98,7 @@
 </head>
 <body>
     <div class="content">
-        <img src="https://kimsec.net/download/caxyhh/icon_logo.png" alt="Logo" />
+        {% if pwa_icon_base_url %}<img src="{{ pwa_icon_base_url }}/icon_logo.png" alt="Logo" />{% endif %}
         {% if not banned %}
             <h1>Stream Control</h1>
         {% endif %}
