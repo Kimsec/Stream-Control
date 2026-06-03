@@ -9,9 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Stream Control">
-    <link rel="apple-touch-icon" sizes="192x192" href="https://kimsec.net/download/caxyhh/icon-192.png">
-    <link rel="icon" type="image/png" href="https://kimsec.net/download/caxyhh/icon_logo.png" />
-    <link rel="manifest" href="https://kimsec.net/download/caxyhh/manifest.json">
+    {% if pwa_icon_base_url %}
+    <link rel="apple-touch-icon" sizes="192x192" href="{{ pwa_icon_base_url }}/icon-192.png">
+    <link rel="icon" type="image/png" href="{{ pwa_icon_base_url }}/icon_logo.png" />
+    {% endif %}
+    <link rel="manifest" href="{{ url_for('manifest') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -35,10 +37,12 @@
                 <i class="fa-solid fa-gear" aria-hidden="true"></i>
                 <span class="tab-text">Settings</span>
             </div>
+            {% if belabox_embed_url %}
             <div class="tab" data-tab="belabox" aria-label="Belabox" title="Belabox">
                 <i class="fa-solid fa-satellite-dish" aria-hidden="true"></i>
                 <span class="tab-text">Belabox</span>
             </div>
+            {% endif %}
             <div class="tab" data-tab="obs" aria-label="OBS" title="OBS">
                 <i class="fa-solid fa-video" aria-hidden="true"></i>
                 <span class="tab-text">OBS</span>
@@ -71,6 +75,7 @@
 
                 <div class="advanced-group" aria-label="Chat">
                     <div class="advanced-group-title">Chat</div>
+                    {% if unified_chat_embed_url %}
                     <label class="advanced-action-btn bot-toggle-card" for="unified-chat-toggle">
                         <span class="bot-toggle-group">
                             <span class="bot-toggle-copy">
@@ -82,6 +87,7 @@
                             </span>
                         </span>
                     </label>
+                    {% endif %}
                     <label class="advanced-action-btn bot-toggle-card" for="chatbot-toggle">
                         <span class="bot-toggle-group">
                             <span class="bot-toggle-copy">
@@ -266,14 +272,16 @@
         </div>
 
         <!-- Belabox-fane -->
+        {% if belabox_embed_url %}
         <div id="belabox" class="tab-content">
         <div id="belabox-container" data-embed-url="{{ belabox_embed_url }}"></div>
         </div>
+        {% endif %}
     
         <!-- Chat-fane -->
         <div id="chat" class="tab-content">
-            <div id="chat-container">
-                <!-- Twitch Chat iFrame will be inserted here -->
+            <div id="chat-container" data-embed-url="{{ unified_chat_embed_url }}">
+                <!-- Twitch chat (toggle OFF) or unified-chat (toggle ON) iFrame is inserted here -->
             </div>
         </div>
     </div>
