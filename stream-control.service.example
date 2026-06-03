@@ -10,8 +10,11 @@ Group=root
 WorkingDirectory=/home/<user>/stream-control
 EnvironmentFile=/home/<user>/stream-control/.env
 
-# Main Gunicorn command with WebSocket-capable worker
-# Uses wsgi.py entrypoint (does gevent monkey patching before app import)
+# Optional: keep HLS preview segments in RAM instead of /tmp (default: /tmp/hls)
+#Environment=HLS_ROOT=/dev/shm/hls
+
+# Main Gunicorn command (sync worker + threads — see gunicorn.conf.py).
+# Uses the wsgi.py entrypoint.
 ExecStart=/home/<user>/stream-control/venv/bin/gunicorn \
     --config /home/<user>/stream-control/gunicorn.conf.py \
     wsgi:app
