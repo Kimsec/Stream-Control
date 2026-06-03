@@ -32,8 +32,8 @@ WAIT_FOR_STREAM_START: bool = os.getenv("WAIT_FOR_STREAM_START", "true").lower()
 IDLE_WHEN_STREAM_ENDS: bool = os.getenv("IDLE_WHEN_STREAM_ENDS", "true").lower() in ("1", "true", "yes", "y")
 EXIT_WHEN_STREAM_ENDS: bool = os.getenv("EXIT_WHEN_STREAM_ENDS", "false").lower() in ("1", "true", "yes", "y")
 
-ALERTS_BASE_URL: Optional[str] = os.getenv("ALERTS_BASE_URL")
-ALERT_TOKEN: str = os.getenv("ALERT_TOKEN")
+ALERTS_BASE_URL: str = os.getenv("ALERTS_BASE_URL", "http://127.0.0.1:5000")
+ALERT_TOKEN: str = os.getenv("ALERT_TOKEN", "")
 
 # ==== Twitch EventSub (WebSocket) ====
 TWITCH_CLIENT_ID      = os.getenv("TWITCH_CLIENT_ID")
