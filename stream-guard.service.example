@@ -1,0 +1,28 @@
+[Unit]
+Description=Stream Guard (bitrate monitor, OBS scene automation, Twitch EventSub)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Regular user is fine here (no root needed). Must be able to read the same
+# .env and twitch_tokens.json that the web app maintains.
+User=<user>
+Group=<user>
+WorkingDirectory=/home/<user>/stream-control
+EnvironmentFile=/home/<user>/stream-control/.env
+Environment=PYTHONUNBUFFERED=1
+
+ExecStart=/home/<user>/stream-control/venv/bin/python /home/<user>/stream-control/stream_guard.py
+
+# Restart policy
+Restart=always
+RestartSec=5
+
+# Logging — the in-app log viewer reads `journalctl -u stream-guard`
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=stream-guard
+
+[Install]
+WantedBy=multi-user.target
