@@ -154,22 +154,8 @@ Then open `http://localhost:5000`.
 
 ## 💾 Installation
 
-### For Development
-```bash
-git clone https://github.com/Kimsec/Stream-Control.git
-cd Stream-Control
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-```
-
-### For Production (Ubuntu/Debian)
-- ✅ Gunicorn with threaded workers
-- ✅ Systemd service installation
-- ✅ Secure password hashing
-- ✅ Cloudflare Tunnel integration
-- ✅ Log rotation and monitoring
+- **Development:** follow [Quick Start](#-quick-start) above (clone → venv → `pip install -r requirements.txt` → copy `.env.example`).
+- **Production (Linux + systemd):** see [Running the Services](#running-the-services) below for the full step-by-step.
 
 ---
 
@@ -186,11 +172,12 @@ Bitrate | STATS_URL, BITRATE_LOW_KBPS, BITRATE_HIGH_KBPS, POLL_INTERVAL_SEC, LOW
 Scenes | LIVE_SCENE_NAME, LOW_SCENE_NAME
 Restream | CONFIG_PATH, NGINX_CONF_OUT
 Mini-PC | MINI_PC_USER, MINI_PC_IP, MAC_ADDRESS
-Twitch | TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, TWITCH_BROADCASTER_ID, TWITCH_OAUTH_TOKEN, TWITCH_REFRESH_TOKEN, TWITCH_TOKENS_PATH
+Twitch | TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, TWITCH_BROADCASTER_ID, TWITCH_OAUTH_TOKEN, TWITCH_REFRESH_TOKEN
 Raid | RAID_AUTO_STOP_ENABLED, RAID_AUTO_STOP_DELAY
 Chat Commands | TWITCH_ADMINS, STARTING_SCENE_NAME, BRB_SCENE_NAME
 Behavior | WAIT_FOR_STREAM_START, EXIT_WHEN_STREAM_ENDS, IDLE_WHEN_STREAM_ENDS, LIVE_SCENE_LOW_GRACE_SEC
 Overlay | ALERTS_BASE_URL
+Optional embeds | BELABOX_EMBED_URL, UNIFIED_CHAT_EMBED_URL, SRT_LINK_URL, PWA_ICON_BASE_URL (leave empty to hide that feature)
 
 Tokens are auto-refreshed and persisted.
 
@@ -207,39 +194,36 @@ python stream_guard.py
 
 ### Production (Recommended)
 
-**Generate password hash first:**
-```bash
-python generate_password_hash.py
-# Add the generated hash to .env as LOGIN_PASSWORD_HASH
-```
-
-**Deploy with Gunicorn + systemd:**
+A complete Linux + systemd setup, start to finish:
 
 ```bash
-# Install dependencies
+# 1. Code + dependencies
+git clone https://github.com/Kimsec/Stream-Control.git
+cd Stream-Control
+python -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
 
-# Update .env first
-# Update stream-control.service.example with your real user/path
-# Then install the systemd service
+# 2. Configuration
+cp .env.example .env
+nano .env                          # fill in OBS, Twitch, paths, etc.
+python generate_password_hash.py   # paste the result into LOGIN_PASSWORD_HASH in .env
+
+# 3. systemd services — edit each .example first: replace <user> and the paths
 sudo cp stream-control.service.example /etc/systemd/system/stream-control.service
+sudo cp stream-guard.service.example   /etc/systemd/system/stream-guard.service
 sudo systemctl daemon-reload
-sudo systemctl enable stream-control
-sudo systemctl start stream-control
+sudo systemctl enable --now stream-control stream-guard
 ```
 
-Before starting the service:
-- Fill in `.env`
-- Set `LOGIN_PASSWORD_HASH`
-- Update `stream-control.service.example` so the paths match your server
-- Make sure your `venv` exists in the project folder
+Both services are needed: **stream-control** is the web app (Gunicorn), **stream-guard** is the background worker (bitrate monitoring, scene switching, Twitch EventSub). Optional chat services (chatbot, unified-chat) are separate projects with their own units.
 
 **Production stack:**
-- Gunicorn with **threaded workers** (sync worker + 100 threads)
-- Secure password hashing (Werkzeug scrypt)
+- Gunicorn — sync worker + 100 threads
+- Werkzeug scrypt password hashing
 - ProxyFix middleware for Cloudflare Tunnel
-- Rotating access logs (10MB max)
-- systemd for auto-restart on failure
+- Rotating access logs (10 MB max)
+- systemd auto-restart on failure
 
 
 ---
@@ -253,7 +237,7 @@ Twitch | Title/category edit, raid
 Restream | Manage push endpoints / Restream endpoints
 Stream-PC | Wake / reboot / shutdown
 Bot | Control optional systemd chat services
-Chat | Embedded Unified Chat
+Chat | Twitch chat (or Unified Chat when its toggle is on)
 Alerts | Sounds when visiting Website
 
 Toasts provide immediate feedback.
@@ -349,7 +333,7 @@ Scene transitions also dispatch overlay alerts.
 - Health shows validity + remaining lifetime.
 - Revoked tokens trigger subscription re-attempt after refresh.
 
-Both `app.py` and `stream_guard.py` use the same token file (`twitch_tokens.json`, path set by `TWITCH_TOKENS_PATH`).
+Both `app.py` and `stream_guard.py` use the same token file — `twitch_tokens.json` next to the app by default (override with `TWITCH_TOKENS_PATH` if needed).
 
 - app.py is the ONLY process that refreshes / rotates the access + refresh tokens (writes the file).
 - stream_guard.py is read‑only: it loads the current access token to:
