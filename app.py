@@ -33,6 +33,10 @@ OBS_HOST               = os.getenv("OBS_HOST")
 OBS_PORT               = int(os.getenv("OBS_PORT"))
 OBS_PASSWORD           = os.getenv("OBS_PASSWORD")
 
+# SLS/Belabox stats endpoint (same one stream_guard.py polls) used for the SLS
+# health dot. Leave empty to mark SLS offline instead of erroring.
+STATS_URL              = os.getenv("STATS_URL", "").strip()
+
 TWITCH_CLIENT_ID       = os.getenv("TWITCH_CLIENT_ID")
 TWITCH_OAUTH_TOKEN     = os.getenv("TWITCH_OAUTH_TOKEN")
 TWITCH_BROADCASTER_ID  = os.getenv("TWITCH_BROADCASTER_ID")
@@ -50,8 +54,22 @@ CHATBOT_BANNED_WORDS_PATH = os.getenv(
     "CHATBOT_BANNED_WORDS_PATH",
     "/home/kim3k/chatbot/banned_words.txt",
 )
-BELABOX_EMBED_URL = os.getenv("BELABOX_EMBED_URL", "https://belabox.kimsec.net").strip() or "https://belabox.kimsec.net"
+# Optional embeds. Leave the matching env var empty to hide the feature in the UI
+# (Belabox tab / Unified chat toggle), mirroring how SRT_LINK_URL hides its section.
+BELABOX_EMBED_URL = os.getenv("BELABOX_EMBED_URL", "").strip()
+UNIFIED_CHAT_EMBED_URL = os.getenv("UNIFIED_CHAT_EMBED_URL", "").strip()
 SRT_LINK_URL = os.getenv("SRT_LINK_URL", "").strip()
+
+# Base URL for the PWA/app icons + favicon (e.g. https://assets.example.com/icons).
+# The app builds <base>/icon-192.png, <base>/icon_logo.png, etc. from this.
+# Leave empty to omit all icons and the web manifest icons (the app still works).
+PWA_ICON_BASE_URL = os.getenv("PWA_ICON_BASE_URL", "").strip().rstrip("/")
+
+
+@app.context_processor
+def inject_pwa_assets():
+    # Exposes pwa_icon_base_url to every template (control/login/bans/manifest).
+    return {"pwa_icon_base_url": PWA_ICON_BASE_URL}
 
 
 BAN_MAX_ATTEMPTS       = int(os.getenv("BAN_MAX_ATTEMPTS", "3"))
@@ -317,6 +335,7 @@ def login():
 def home():
     return render_template('control.html',
                            belabox_embed_url=BELABOX_EMBED_URL,
+                           unified_chat_embed_url=UNIFIED_CHAT_EMBED_URL,
                            srt_link_url=SRT_LINK_URL)
 
 @app.route('/bans')
@@ -1127,7 +1146,10 @@ def repair_backend():
 
 @app.route('/manifest.json')
 def manifest():
-    return send_from_directory('.', 'manifest.json')
+    # Rendered from templates/manifest.json so the icon URLs use PWA_ICON_BASE_URL.
+    resp = make_response(render_template('manifest.json'))
+    resp.mimetype = 'application/manifest+json'
+    return resp
 
 # --- Alerts API ---
 _alert_lock = Lock()
@@ -1368,12 +1390,15 @@ def sg_status():
         nginx_state = 'error'
     base['nginx_state'] = nginx_state
 
-    # SLS stats endpoint
-    try:
-        sr = requests.get("http://192.168.25.5:8181/stats", timeout=2)
-        base['sls_state'] = 'ok' if sr.status_code == 200 else 'error'
-    except Exception:
-        base['sls_state'] = 'error'
+    # SLS stats endpoint (reuses STATS_URL, the same endpoint stream_guard polls)
+    if STATS_URL:
+        try:
+            sr = requests.get(STATS_URL, timeout=2)
+            base['sls_state'] = 'ok' if sr.status_code == 200 else 'error'
+        except Exception:
+            base['sls_state'] = 'error'
+    else:
+        base['sls_state'] = 'offline'
 
     # Twitch token validity
     tinfo = _current_token_info()
