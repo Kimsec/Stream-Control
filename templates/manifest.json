@@ -1,0 +1,55 @@
+{
+  "name": "Stream Control",
+  "short_name": "StreamCtrl",
+  "description": "Kontroller stream, chat og utstyr - alt på ett sted!",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#81029b",
+  "orientation": "portrait",
+  "scope": "/",
+  {% if pwa_icon_base_url %}
+  "icons": [
+    {
+      "src": "{{ pwa_icon_base_url }}/icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "{{ pwa_icon_base_url }}/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "{{ pwa_icon_base_url }}/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "{{ pwa_icon_base_url }}/icon-1024.png",
+      "sizes": "1024x1024",
+      "type": "image/png"
+    },
+    {
+      "src": "{{ pwa_icon_base_url }}/maskable-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  {% endif %}
+  "shortcuts": [
+    {
+      "name": "Start Stream",
+      "short_name": "Start",
+      "description": "Start stream",
+      "url": "/#obs"
+    },
+    {
+      "name": "Chat",
+      "short_name": "Chat",
+      "description": "Gå rett til chatten",
+      "url": "/#chat"
+    }
+  ]
+}
