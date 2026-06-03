@@ -21,9 +21,9 @@ sock = Sock(app)                # så initialiser Sock
 load_dotenv()
 
 FLASK_SECRET_KEY       = os.getenv("FLASK_SECRET_KEY")
-CONFIG_PATH            = os.getenv("CONFIG_PATH")
+CONFIG_PATH            = os.getenv("CONFIG_PATH", os.path.join(os.path.dirname(__file__), "rtmp_endpoints.json"))
 NGINX_CONF_OUT         = os.getenv("NGINX_CONF_OUT")
-ALERT_TOKEN            = os.getenv("ALERT_TOKEN").strip()
+ALERT_TOKEN            = os.getenv("ALERT_TOKEN", "").strip()
 
 MINI_PC_USER           = os.getenv("MINI_PC_USER")
 MINI_PC_IP             = os.getenv("MINI_PC_IP")
@@ -59,6 +59,7 @@ CHATBOT_BANNED_WORDS_PATH = os.getenv(
 BELABOX_EMBED_URL = os.getenv("BELABOX_EMBED_URL", "").strip()
 UNIFIED_CHAT_EMBED_URL = os.getenv("UNIFIED_CHAT_EMBED_URL", "").strip()
 SRT_LINK_URL = os.getenv("SRT_LINK_URL", "").strip()
+STREAMELEMENTS_OVERLAY_URL = os.getenv("STREAMELEMENTS_OVERLAY_URL", "").strip()
 
 # Base URL for the PWA/app icons + favicon (e.g. https://assets.example.com/icons).
 # The app builds <base>/icon-192.png, <base>/icon_logo.png, etc. from this.
@@ -336,7 +337,8 @@ def home():
     return render_template('control.html',
                            belabox_embed_url=BELABOX_EMBED_URL,
                            unified_chat_embed_url=UNIFIED_CHAT_EMBED_URL,
-                           srt_link_url=SRT_LINK_URL)
+                           srt_link_url=SRT_LINK_URL,
+                           streamelements_overlay_url=STREAMELEMENTS_OVERLAY_URL)
 
 @app.route('/bans')
 @login_required
