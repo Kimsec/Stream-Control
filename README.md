@@ -28,7 +28,6 @@
 ## Table of Contents
 - [Overview](#overview)
 - [Features](#features)
-- [Architecture](#architecture)
 - [Quick Start](#quick-start)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
@@ -45,8 +44,6 @@
 - [Security Recommendations](#security-recommendations)
 - [Ip Banning](#ip-banning)
 - [Troubleshooting](#troubleshooting)
-- [Extending](#extending)
-- [Contributing](#contributing)
 
 ---
 
@@ -96,19 +93,6 @@ Ever tried managing a stream while your internet decides to have a bad day? Stre
 
 ---
 
-## Architecture
-
-Component | Role
-----------|-----
-`app.py` | UI endpoints, token refresh, restream config generation, alerts broadcast
-`stream_guard.py` | Bitrate/scene logic, raid EventSub, health server
-`static/main.js` | UI interactions, polling, modals, toasts
-`templates/` | HTML + nginx Jinja2 template
-`twitch_tokens.json` | Access + refresh token store (rotated automatically)
-
-Processes are decoupled for resilience.
-
----
 
 ## 🏃 Quick Start
 
@@ -130,6 +114,7 @@ python stream_guard.py
 
 Notes:
 - `.env.example` includes short guidance and useful links for the required credentials and tokens.
+- Authorize Twitch once with `auth_server_SG.py` — see [First-time Twitch authorization](#first-time-twitch-authorization).
 - Set `LOGIN_PASSWORD_HASH` before using the web UI.
 - For production, see the installation and service sections below.
 
@@ -161,25 +146,9 @@ Then open `http://localhost:5000`.
 
 ## Configuration
 
-Key groups in `.env`:
+All settings live in `.env`. Copy `.env.example` to `.env` and fill it in — every variable has a short inline comment explaining it. Optional features (Belabox, Unified chat, SRT link, StreamElements, PWA icons) stay hidden until you set their URL.
 
-Group | Examples
-------|---------
-Flask/Auth | FLASK_SECRET_KEY, LOGIN_PASSWORD_HASH (use `python generate_password_hash.py` to generate)
-Logging | LOGLEVEL (warning/info/debug), GUNICORN_ACCESSLOG (path or /dev/null)
-OBS | OBS_HOST, OBS_PORT, OBS_PASSWORD
-Bitrate | STATS_URL, BITRATE_LOW_KBPS, BITRATE_HIGH_KBPS, POLL_INTERVAL_SEC, LOW_CONSEC_SAMPLES
-Scenes | LIVE_SCENE_NAME, LOW_SCENE_NAME
-Restream | CONFIG_PATH, NGINX_CONF_OUT
-Mini-PC | MINI_PC_USER, MINI_PC_IP, MAC_ADDRESS
-Twitch | TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, TWITCH_BROADCASTER_ID, TWITCH_OAUTH_TOKEN, TWITCH_REFRESH_TOKEN
-Raid | RAID_AUTO_STOP_ENABLED, RAID_AUTO_STOP_DELAY
-Chat Commands | TWITCH_ADMINS, STARTING_SCENE_NAME, BRB_SCENE_NAME
-Behavior | WAIT_FOR_STREAM_START, EXIT_WHEN_STREAM_ENDS, IDLE_WHEN_STREAM_ENDS, LIVE_SCENE_LOW_GRACE_SEC
-Overlay | ALERTS_BASE_URL
-Optional embeds | BELABOX_EMBED_URL, UNIFIED_CHAT_EMBED_URL, SRT_LINK_URL, PWA_ICON_BASE_URL (leave empty to hide that feature)
-
-Tokens are auto-refreshed and persisted.
+Twitch tokens are refreshed and saved automatically once configured.
 
 ---
 
@@ -238,7 +207,7 @@ Restream | Manage push endpoints / Restream endpoints
 Stream-PC | Wake / reboot / shutdown
 Bot | Control optional systemd chat services
 Chat | Twitch chat (or Unified Chat when its toggle is on)
-Alerts | Sounds when visiting Website
+Alerts | Low-bitrate, connection-restored & StreamElements sounds
 
 Toasts provide immediate feedback.
 
@@ -249,13 +218,11 @@ Toasts provide immediate feedback.
 - Hiding the player fully unloads the iframe to stop audio and save bandwidth.
 - The correct channel is resolved automatically from `/twitch/channel_info` and cached for instant display.
 
-Note: Twitch requires the page’s hostname to be listed in the embed `parent` parameter; the template injects this automatically.
 
 ### Viewer count (OBS tab)
 
 - While live, the OBS tab shows “Viewers: N”.
 - Polling is enabled only when streaming and stops when offline to minimize load.
-- Backend endpoint: `GET /twitch/stream_info` → `{ is_live, viewer_count, title, game_name, started_at }`.
 
 ---
 
@@ -299,7 +266,7 @@ Command | Action
 `!start` | Start the stream (ignored if already live) then switch to `STARTING_SCENE_NAME` (if set) or stay on current
 `!live`  | Switch to `LIVE_SCENE_NAME`
 `!brb`   | Switch to `BRB_SCENE_NAME`
-`!fix`   | Switch to BRB then back to LIVE after ~2 seconds
+`!fix`   | Switch to BRB then back to LIVE after ~2 seconds (use case: fix mic delay or stream lag)
 `!stop`  | Stop the current stream
 
 Environment variables affecting commands:
@@ -328,8 +295,22 @@ Scene transitions also dispatch overlay alerts.
 
 ## Twitch Integration & Tokens
 
+### First-time Twitch authorization
+
+`auth_server_SG.py` runs a small local server that walks you through Twitch's OAuth once and saves the tokens. After this, `app.py` refreshes them automatically — you only do this during first-time setup (or after adding a scope).
+
+1. Set `TWITCH_CLIENT_ID` and `TWITCH_CLIENT_SECRET` in `.env` (from your app at [dev.twitch.tv/console/apps](https://dev.twitch.tv/console/apps)).
+2. In that Twitch app, add an **OAuth Redirect URL** equal to `AUTH_PUBLIC_BASE` + `/callback`. With the default (`AUTH_PUBLIC_BASE` empty → `http://localhost:3750`) that's `http://localhost:3750/callback`. Twitch allows `http://localhost` here.
+3. Run `python auth_server_SG.py` (it prints the redirect URI it expects).
+4. Open `http://localhost:3750/login` in your browser and authorize.
+5. The tokens are written to `.env` and `twitch_tokens.json`. Stop the script — you're done.
+
+**Headless server?** Set `AUTH_PUBLIC_BASE` to a URL your browser **and** Twitch can reach (e.g. a temporary Cloudflare Tunnel) and use that + `/callback` as the Redirect URL. **Adding a scope later?** Update `TWITCH_SCOPES`, re-run `auth_server_SG.py`, and re-authorize.
+
+### Token handling
+
 - Automatic refresh when invalid or near expiry.
-- Shared file `twitch_tokens.json` used by Stream Guard.
+- Shared file `twitch_tokens.json` used by Stream Guard (and [unified-chat](https://github.com/Kimsec/Unified-chat) project).
 - Health shows validity + remaining lifetime.
 - Revoked tokens trigger subscription re-attempt after refresh.
 
@@ -354,27 +335,25 @@ If a token is revoked or expires, app.py refresh logic updates the file; guard d
 
 ## Alert Sound
 - Alerts from streamElements
-- Alerts when low bitrate / Connection restored (TTS on website)
-- Send: `POST /api/alert` `{ "type": "low"|"restored", "message": "..." }`
-- Transport: WebSocket (stateless; waits for next event)
+- Alerts when low bitrate / Connection restored
 
 ---
 
 ## Logs Viewer
 
-A built-in, mobile-friendly log viewer is available from the Mini-PC tab via the "Logs" button. It helps you inspect systemd service logs without SSH.
+A built-in, mobile-friendly log viewer is available from the Settings tab via the "Logs" button. It helps you inspect systemd service logs.
 
 Features:
 
 - Service dropdown: switch between multiple services without mixing lines. Current services:
+  - stream-control.service (the web app itself)
   - stream-guard.service (StreamGuard)
   - chatbot.service (optional)
   - unified-chat.service (optional)
   - nginx.service
-  - stunnel-kick.service
-  - stream-control.service (the web app itself)
+  - stunnel-kick.service (required IF RTMPS endpoints)
 - Line count selector: load last 25 (default), 50, or 100 lines.
-- Follow toggle: continue streaming new lines in real time via WebSocket.
+- Follow toggle: continue streaming new lines in real time.
 - Timestamp format: rendered in journalctl short style, e.g. "Sep 08 04:56:38:" for readability.
 - Color cues: basic highlighting for ERROR/WARN/INFO/DEBUG.
 - Auto-scroll, large buffer trimming, and service-isolated sessions avoid stale entries when switching.
@@ -396,7 +375,6 @@ Notes:
 
 The dashboard polls a lightweight health endpoint and renders compact status dots (ok/offline/error) with labels.
 
-Data source: GET `/api/sg_status`
 
 Provided states (UI shows a dot + concise label):
 
@@ -418,18 +396,11 @@ Color coding in UI:
 - offline: gray dot
 - error: red dot (e.g., explicit error conditions)
 
-Operational notes:
-
-- StreamGuard’s EventSub client auto-retries subscription with backoff after network/token changes.
-- When a token transitions from invalid to valid, a forced re-subscribe attempt is scheduled promptly.
-
 ---
 
 ## Security Recommendations
 
-- Reverse proxy + HTTPS
-- Limit network exposure (VPN / LAN)
-- Least-privilege sudo (only what’s required)
+- Reverse proxy + HTTPS OR tunneling (cloudflare for instance)
 - Strong secrets (FLASK_SECRET_KEY, LOGIN_PASSWORD)
 - Restrict token file permissions (600)
 - Never commit `.env` or live stream keys
@@ -440,21 +411,11 @@ Operational notes:
 
 Stream-Control now includes support for IP banning to protect against unwanted connections or abuse. When an IP is banned:
 
+- IP banning is enabled by default.
 - Connections from the banned IP address are immediately blocked.
 - A log entry is created to indicate that a blocked IP attempted to connect.
 - Banned IPs can be managed via the `bans.json` file or directly through the admin control panel at `/bans`.
 
-### How to Enable IP Banning
-
-1. IP banning is enabled by default.
-
-
-
-#### Important Notes
-
-- Ensure the `bans.json` file is protected against unauthorized access.
-- Use this feature cautiously to avoid accidentally blocking legitimate users.
-- Unbanning IPs can be done easily via the admin control panel at `/bans`.
 
 ---
 
@@ -470,15 +431,6 @@ nginx reload fails | Endpoint syntax / template values
 Chat missing | Ensure broadcaster_name + correct parent domain
 
 Check logs for both processes first.
-
----
-
-## Extending
-
-Ideas:
-- More metrics
-- Role-based access
-- Come with suggestions
 
 ---
 
