@@ -164,7 +164,7 @@
                 <div id="health-panel" class="health-panel">
                     <h3 class="health-title">Health checks:</h3>
                     <ul class="health-list">
-                        <li><span class="health-name">Chatbot</span><span class="hc-dot" id="hc-chatbot" title="chatbot.service"></span><span class="hc-label" id="hc-chatbot-label">—</span></li>
+                        <li id="hc-chatbot-row"><span class="health-name">Chatbot</span><span class="hc-dot" id="hc-chatbot" title="chatbot.service"></span><span class="hc-label" id="hc-chatbot-label">—</span></li>
                         <li><span class="health-name">Unified chat</span><span class="hc-dot" id="hc-unifiedchat" title="unified-chat.service"></span><span class="hc-label" id="hc-unifiedchat-label">—</span></li>
                         <li><span class="health-name">Nginx</span><span class="hc-dot" id="hc-nginx" title="nginx.service"></span><span class="hc-label" id="hc-nginx-label">—</span></li>
                         <li><span class="health-name">Stunnel</span><span class="hc-dot" id="hc-stunnel" title="stunnel-kick.service"></span><span class="hc-label" id="hc-stunnel-label">—</span></li>
@@ -288,7 +288,7 @@
     <!-- Skjult alertbox for lyd/varsler -->
     <iframe id="alertbox-iframe" 
         src="about:blank"
-        data-src="https://streamelements.com/overlay/60455a2e72dba40e07a947fe/cMQQvgWouVphlojJFWRDPUMTeCiorUTgYJzZqgCu29V3jY0p"
+        data-src="{{ streamelements_overlay_url }}"
         allow="autoplay"
         class="hidden-alert-frame"
         tabindex="-1"></iframe>
