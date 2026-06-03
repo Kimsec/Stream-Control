@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#000000">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" />
 <style>
 html {
@@ -1584,9 +1584,16 @@ letter-spacing:.5px;
 /* Chat simulation (demo-only) */
 #chat-container{
     flex:1 1 0;min-height:0;width:100%;overflow:hidden;
-    background:#0b0b0b;display:flex;flex-direction:column;
+    display:flex;flex-direction:column;
+    font-family:"IBM Plex Sans","Segoe UI",sans-serif;color:#eef4ff;
+    /* unified-chat popout: translucent navy panel over the body gradient, so the glows stay subtle */
+    background:
+        linear-gradient(rgba(11,19,35,0.88), rgba(11,19,35,0.88)),
+        radial-gradient(circle at top left, rgba(145,70,255,0.18), transparent 30%),
+        radial-gradient(circle at top right, rgba(83,252,24,0.12), transparent 26%),
+        linear-gradient(160deg, #09111f 0%, #050910 65%, #020408 100%);
 }
-.chat-feed{flex:1 1 0;min-height:0;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:6px;}
+.chat-feed{flex:1 1 0;min-height:0;overflow-y:auto;padding:10px 4px 4px;display:flex;flex-direction:column;gap:4px;}
 .chat-msg{
     font-size:0.93rem;line-height:1.4;padding:6px 12px;border-radius:10px;
     background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);
@@ -1597,8 +1604,8 @@ letter-spacing:.5px;
 .chat-msg .chat-time{color:#94a7c4;font-size:0.82rem;margin-right:4px;}
 .platform-pill{
     display:inline-flex;align-items:center;vertical-align:middle;
-    gap:4px;padding:2px 6px;border-radius:999px;font-size:0.82rem;
-    color:#fff;margin-right:2px;
+    gap:5px;padding:3px 6px;border-radius:999px;font-size:0.82rem;
+    color:#fff;margin-right:3px;
 }
 .platform-pill svg{width:16px;height:16px;display:block;}
 .platform-pill.twitch{background:rgba(145,70,255,0.18);}
@@ -1606,16 +1613,38 @@ letter-spacing:.5px;
 .platform-pill.kick{background:rgba(83,252,24,0.18);color:#d7ffd0;}
 .chat-msg .chat-author{font-weight:700;white-space:nowrap;}
 .chat-msg .chat-text{word-break:break-word;}
+/* System notices (gifts / bits / subs) — styled like unified-chat */
+.chat-msg.system-notice{background:rgba(145,70,255,0.06);border-color:rgba(145,70,255,0.12);}
+.chat-msg.system-notice[data-platform="twitch"]{
+    border:2px solid transparent;
+    background:
+        linear-gradient(rgba(145,70,255,0.08),rgba(145,70,255,0.08)) padding-box,
+        linear-gradient(#0d1626,#0d1626) padding-box,
+        conic-gradient(from var(--twitch-rainbow-angle),rgba(255,59,59,.8),rgba(255,177,59,.8),rgba(245,238,58,.8),rgba(76,217,100,.8),rgba(52,192,255,.8),rgba(106,92,255,.8),rgba(255,92,209,.8),rgba(255,59,59,.8)) border-box;
+    animation:twitch-rainbow-spin 6s linear infinite;
+}
+.chat-msg .system-notice-text{color:#fff;}
+@property --twitch-rainbow-angle{syntax:'<angle>';initial-value:0deg;inherits:false;}
+@keyframes twitch-rainbow-spin{to{--twitch-rainbow-angle:360deg;}}
+/* Hype train bar — styled like unified-chat */
+.hype-train-bar{flex-shrink:0;padding:8px 14px;border-bottom:1px solid rgba(124,149,184,0.18);background:rgba(145,70,255,0.08);max-height:60px;opacity:1;overflow:hidden;transition:opacity .5s ease,max-height .5s ease,padding .5s ease;}
+.hype-train-bar.hidden{max-height:0;opacity:0;padding:0 14px;border-bottom:none;pointer-events:none;}
+.hype-train-info{display:flex;justify-content:space-between;align-items:center;font-size:0.82rem;margin-bottom:5px;}
+.hype-train-label{font-weight:700;color:#eef4ff;}
+#ht-progress-text{color:#94a7c4;}
+.hype-train-track{height:6px;border-radius:3px;background:rgba(255,255,255,0.08);overflow:hidden;}
+.hype-train-fill{height:100%;width:0%;border-radius:3px;background:linear-gradient(90deg,#9146ff,#ffd700);transition:width .4s ease;}
 .chat-input-bar{
-    display:flex;gap:8px;padding:10px 12px;border-top:1px solid #1e1e1e;flex-shrink:0;
-    background:#0d0d0d;
+    display:flex;gap:8px;padding:10px 12px 12px;border-top:1px solid rgba(124,149,184,0.18);flex-shrink:0;
 }
 .chat-input-bar input{
-    flex:1;background:#141414;border:1px solid #262626;color:#eee;
-    padding:10px 14px;border-radius:999px;font:inherit;font-size:0.93rem;
+    flex:1;min-width:0;background:rgba(4,8,15,0.72);border:1px solid rgba(255,255,255,0.08);color:#eef4ff;
+    padding:8px 12px;border-radius:10px;font:inherit;font-size:0.93rem;
 }
-.chat-input-bar input:focus{outline:none;border-color:#81029b;box-shadow:0 0 0 2px rgba(129,2,155,.25);}
-.chat-input-bar button{width:auto;max-width:none;padding:10px 20px;font-size:14px;margin:0;border-radius:999px;}
+.chat-input-bar input:focus{outline:none;border-color:rgba(124,149,184,0.5);}
+.chat-input-bar .emote-toggle{flex:0 0 auto;width:auto;min-width:0;max-width:none;margin:0;padding:4px;background:none;border:none;border-radius:50%;font-size:1.3rem;line-height:1;cursor:pointer;color:#eef4ff;transition:transform .16s ease;}
+.chat-input-bar .emote-toggle:hover{transform:scale(1.15);}
+.chat-input-bar button:not(.emote-toggle){width:auto;max-width:none;padding:11px 18px;font-size:14px;margin:0;border:0;border-radius:999px;flex-shrink:0;color:#03070d;background:linear-gradient(135deg,#d5ff7e,#73f0a8);font-weight:700;}
 
 /* Belabox placeholder — center both axes, override real app flex */
 #belabox.tab-content{display:none;}
@@ -1659,17 +1688,26 @@ letter-spacing:.5px;
     #restreamOptions{max-width:425px !important;}
 }
 #restreamOptions .endpoint-row{
-    font-size:15px !important;display:flex !important;align-items:center !important;
-    gap:10px !important;grid-template-columns:none !important;
-    margin-bottom:8px !important;padding:10px 12px !important;
+    font-size:15px !important;display:grid !important;
+    grid-template-columns:auto minmax(0,1fr) auto auto auto !important;
+    align-items:center !important;gap:8px !important;
+    margin-bottom:8px !important;padding:8px 12px !important;
     background:#181818 !important;border:1px solid #2c2c2c !important;border-radius:16px !important;
 }
 #restreamOptions .endpoint-row input[type="checkbox"]{
     width:16px !important;height:16px !important;accent-color:#81029b;
 }
-#restreamOptions .endpoint-platform{display:flex;align-items:center;gap:6px;min-width:90px;}
-#restreamOptions .endpoint-platform svg{width:18px;height:18px;display:block;}
-#restreamOptions .endpoint-name{flex:1;color:#ccc;font-size:14px;}
+#restreamOptions .endpoint-name-display{color:#eee;font-size:14px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#restreamOptions .endpoint-platform-display{display:flex;align-items:center;gap:6px;color:#bbb;font-size:13px;}
+#restreamOptions .endpoint-platform-display svg{width:18px;height:18px;display:block;}
+#restreamOptions .icon-btn{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:30px;height:30px;border-radius:9px;border:1px solid #2c2c2c;
+    background:#1c1c1c;color:#bbb;cursor:pointer;font-size:13px;
+    transition:background .15s ease,color .15s ease,border-color .15s ease;
+}
+#restreamOptions .icon-btn:hover{background:#262626;color:#fff;}
+#restreamOptions .delete-endpoint:hover{color:#ff6b6b;border-color:#5a2a2a;}
 #restreamOptions .restream-add-btn{
     width:auto !important;max-width:none !important;padding:10px 20px !important;
     font-size:14px !important;margin:10px 0 !important;display:inline-block !important;
@@ -1680,9 +1718,9 @@ letter-spacing:.5px;
     font-size:15px !important;margin:0 !important;border-radius:12px !important;
 }
 #restreamOptions .restream-actions .primary{
-    background:#81029b !important;border-color:#81029b !important;color:#fff !important;
+    background:linear-gradient(145deg,#243224,#1a241a) !important;border-color:#2c4b2c !important;color:#fff !important;
 }
-#restreamOptions .restream-actions .primary:hover{background:#a50fcf !important;}
+#restreamOptions .restream-actions .primary:hover{background:linear-gradient(145deg,#2c3e2c,#1f2c1f) !important;border-color:#356035 !important;}
 #restreamOptions .restream-actions .secondary{
     background:#2d2d2d !important;border-color:#3a3a3a !important;color:#eee !important;
 }
@@ -1912,10 +1950,18 @@ letter-spacing:.5px;
     <!-- ========== Chat tab ========== -->
     <div id="chat" class="tab-content">
         <div id="chat-container">
+            <div id="hype-train-bar" class="hype-train-bar hidden" role="status" aria-live="polite">
+                <div class="hype-train-info">
+                    <span class="hype-train-label">Hype Train Lvl <span id="ht-level">1</span></span>
+                    <span id="ht-progress-text"></span>
+                </div>
+                <div class="hype-train-track"><div id="ht-fill" class="hype-train-fill"></div></div>
+            </div>
             <div class="chat-feed" id="chat-feed"></div>
             <div class="chat-input-bar">
-                <input type="text" placeholder="Send a message..." id="chat-input">
-                <button onclick="sendChatMsg()">Chat</button>
+                <input type="text" placeholder="Reply to Twitch..." id="chat-input">
+                <button class="emote-toggle" type="button" title="Emotes" onclick="toast('Emote picker (demo)','info')">😊</button>
+                <button onclick="sendChatMsg()">Send</button>
             </div>
         </div>
     </div>
@@ -2067,7 +2113,6 @@ function renderLogs(service) {
 
 // === Health checks ===
 const HEALTH_ITEMS = [
-    { name:'Chatbot', dot:'hc-off', label:'offline', labelClass:'' },
     { name:'Unified chat', dot:'hc-ok', label:'ok', labelClass:'' },
     { name:'Nginx', dot:'hc-ok', label:'ok', labelClass:'' },
     { name:'Stunnel', dot:'hc-ok', label:'ok', labelClass:'' },
@@ -2163,10 +2208,15 @@ const FAKE_ENDPOINTS = [
 function renderEndpoints() {
     const el = document.getElementById('endpointsList');
     el.innerHTML = FAKE_ENDPOINTS.map(ep =>
-        `<div class="endpoint-row">
-            <input type="checkbox" ${ep.enabled ? 'checked' : ''}>
-            <div class="endpoint-platform">${PLATFORM_SVGS[ep.platform]}<span>${ep.platform.charAt(0).toUpperCase() + ep.platform.slice(1)}</span></div>
-            <div class="endpoint-name">${escapeHtml(ep.name)}</div>
+        `<div class="endpoint-row" data-platform="${ep.platform}">
+            <input type="checkbox" class="endpoint-enabled" ${ep.enabled ? 'checked' : ''} aria-label="Enable endpoint">
+            <div class="endpoint-name-display">${escapeHtml(ep.name)}</div>
+            <div class="endpoint-platform-display" data-platform="${ep.platform}">
+                <span class="endpoint-platform-icon">${PLATFORM_SVGS[ep.platform]}</span>
+                <span class="endpoint-platform-label">${ep.platform.charAt(0).toUpperCase() + ep.platform.slice(1)}</span>
+            </div>
+            <button class="icon-btn edit-endpoint" title="Edit" onclick="toast('Editing is disabled in this demo','info')"><i class="fa-solid fa-pen"></i></button>
+            <button class="icon-btn delete-endpoint" title="Delete" onclick="toast('Editing is disabled in this demo','info')"><i class="fa-solid fa-trash"></i></button>
         </div>`
     ).join('');
 }
@@ -2249,6 +2299,14 @@ const CHAT_MSGS = [
     'Stream is fire today', 'Insane mechanics', 'Kappa', 'When is the next stream?',
 ];
 
+const SYSTEM_NOTICES = [
+    'musYo gifted 5 subs to the community! 🎁',
+    'Caxyhh cheered 500 bits! ✨',
+    'snake989 is gifting 10 Tier 1 subs! 🎁',
+    'Eticer cheered 100 bits — PogChamp',
+    'shayshaymonkey subscribed at Tier 1! (3 months)',
+    'GameWizard gifted a sub to john_the_bon! 🎁',
+];
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
@@ -2262,6 +2320,15 @@ function addChatMsg(user, text) {
     div.className = 'chat-msg';
     const pill = user.platform ? `<span class="platform-pill ${user.platform}">${CHAT_PLATFORM_SVGS[user.platform]}</span>` : '';
     div.innerHTML = `<span class="chat-time">${formatChatTime()}</span> ${pill}<span class="chat-author" style="color:${user.color}">${escapeHtml(user.name)}:</span> <span class="chat-text">${escapeHtml(text)}</span>`;
+    chatFeed.appendChild(div);
+    chatFeed.scrollTop = chatFeed.scrollHeight;
+}
+
+function addSystemNotice(text) {
+    const div = document.createElement('div');
+    div.className = 'chat-msg system-notice';
+    div.dataset.platform = 'twitch';
+    div.innerHTML = `<span class="chat-time">${formatChatTime()}</span> <span class="platform-pill twitch">${CHAT_PLATFORM_SVGS.twitch}</span><span class="chat-text system-notice-text">${escapeHtml(text)}</span>`;
     chatFeed.appendChild(div);
     chatFeed.scrollTop = chatFeed.scrollHeight;
 }
@@ -2282,7 +2349,8 @@ seedMsgs.forEach(m => addChatMsg(m.user, m.text));
 // Auto chat messages
 setInterval(() => {
     if (document.getElementById('chat').classList.contains('active')) {
-        addChatMsg(pick(CHAT_USERS), pick(CHAT_MSGS));
+        if (Math.random() < 0.22) addSystemNotice(pick(SYSTEM_NOTICES));
+        else addChatMsg(pick(CHAT_USERS), pick(CHAT_MSGS));
     }
 }, 2500);
 
@@ -2296,6 +2364,48 @@ function sendChatMsg() {
 document.getElementById('chat-input').addEventListener('keydown', e => {
     if (e.key === 'Enter') sendChatMsg();
 });
+
+// Hype train simulation (demo) — first run ~10s after the Chat tab is open, then occasionally
+const htBar = document.getElementById('hype-train-bar');
+const htLevel = document.getElementById('ht-level');
+const htProgress = document.getElementById('ht-progress-text');
+const htFill = document.getElementById('ht-fill');
+let htRunning = false;
+function runHypeTrain() {
+    if (!htBar || htRunning) return;
+    if (!document.getElementById('chat').classList.contains('active')) return;
+    htRunning = true;
+    let level = 1, pct = 0;
+    htLevel.textContent = '1';
+    htProgress.textContent = '0%';
+    htFill.style.width = '0%';
+    htBar.classList.remove('hidden');
+    addSystemNotice('A Hype Train has started! 🚂');
+    const tick = setInterval(() => {
+        pct += 8 + Math.floor(Math.random() * 14);
+        if (pct >= 100) {
+            pct = 0; level++;
+            htLevel.textContent = String(level);
+            if (level > 3) {
+                clearInterval(tick);
+                htFill.style.width = '100%';
+                htProgress.textContent = 'Ended (Lvl 3)';
+                addSystemNotice('Hype Train ended at Level 3! 🎉');
+                setTimeout(() => {
+                    htBar.classList.add('hidden');
+                    htFill.style.width = '0%';
+                    htLevel.textContent = '1';
+                    htProgress.textContent = '';
+                    htRunning = false;
+                }, 5000);
+                return;
+            }
+        }
+        htFill.style.width = pct + '%';
+        htProgress.textContent = pct + '%';
+    }, 700);
+}
+setTimeout(() => { runHypeTrain(); setInterval(runHypeTrain, 40000); }, 10000);
 </script>
 </body>
 </html>
