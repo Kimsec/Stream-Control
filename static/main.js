@@ -116,6 +116,11 @@ function _syncChatbotToggleUI(){
   if(chatbotToggleEl){
     chatbotToggleEl.checked = !!_chatbotAutoStartEnabled;
   }
+  // Only show the Chatbot health row while the toggle is on.
+  const row = document.getElementById('hc-chatbot-row');
+  if(row){
+    row.style.display = _chatbotAutoStartEnabled ? '' : 'none';
+  }
 }
 
 function _syncUnifiedChatToggleUI(){
