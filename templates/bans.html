@@ -2,9 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<link rel="apple-touch-icon" sizes="192x192" href="https://kimsec.net/download/caxyhh/icon-192.png">
-<link rel="icon" type="image/png" href="https://kimsec.net/download/caxyhh/icon_logo.png" />
-<link rel="manifest" href="https://kimsec.net/download/caxyhh/manifest.json">
+{% if pwa_icon_base_url %}
+<link rel="apple-touch-icon" sizes="192x192" href="{{ pwa_icon_base_url }}/icon-192.png">
+<link rel="icon" type="image/png" href="{{ pwa_icon_base_url }}/icon_logo.png" />
+{% endif %}
+<link rel="manifest" href="{{ url_for('manifest') }}">
 <title>IP Bans</title>
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <style>
