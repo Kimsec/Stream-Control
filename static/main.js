@@ -10,10 +10,10 @@ let _unifiedChatAutoStartEnabled = false;
 let _unifiedChatPrefHoldUntil = 0;
 let _isStreamingLive = false;
 let _advancedPanelVisible = false;
-const UNIFIED_CHAT_EMBED_URL = 'https://unified-chat.kimsec.net/popout?platform_names=0';
+const UNIFIED_CHAT_EMBED_URL = document.getElementById('chat-container')?.dataset.embedUrl || '';
 const UNIFIED_CHAT_RETRY_MS = 2500;
 const belaboxContainerEl = document.getElementById('belabox-container');
-const BELABOX_EMBED_URL = belaboxContainerEl?.dataset.embedUrl || 'https://belabox.kimsec.net';
+const BELABOX_EMBED_URL = belaboxContainerEl?.dataset.embedUrl || '';
 const BELABOX_RETRY_MS = 2500;
 let _chatTabActive = false;
 let _chatEmbedMounted = false;
@@ -178,6 +178,11 @@ function _handleUnifiedChatToggleChange(enabled){
   } else if (_isStreamingLive) {
     _startUnifiedChat();
   }
+  // The toggle also selects which embed the Chat tab shows; swap it live if open.
+  if(_chatTabActive){
+    _resetChatEmbedForModeSwitch();
+    _mountChatEmbed();
+  }
 }
 
 if(chatbotToggleEl){
@@ -203,8 +208,13 @@ if(unifiedChatToggleEl){
     .then(r => r.ok ? r.json() : Promise.reject())
     .then(js => {
       if(typeof js.enabled === 'boolean' && Date.now() > _unifiedChatPrefHoldUntil){
+        const _prev = _unifiedChatAutoStartEnabled;
         _unifiedChatAutoStartEnabled = js.enabled;
         _syncUnifiedChatToggleUI();
+        if(_prev !== _unifiedChatAutoStartEnabled && _chatTabActive){
+          _resetChatEmbedForModeSwitch();
+          _mountChatEmbed();
+        }
       }
     })
     .catch(()=>{});
@@ -706,12 +716,66 @@ function showRaidChannelForm() {
     document.getElementById("showRaidChannelInput").style.display = "none";
 }
 
-function loadTwitchChat() {
+// The "Unified chat" toggle decides which embed the Chat tab shows:
+//   ON  -> the unified-chat web app (gated on the service being ready)
+//   OFF -> native Twitch chat (works always, even offline)
+function _chatModeIsUnified(){
+  // Unified mode requires both the toggle ON and a configured embed URL;
+  // otherwise the Chat tab always falls back to native Twitch chat.
+  return !!_unifiedChatAutoStartEnabled && !!UNIFIED_CHAT_EMBED_URL;
+}
+
+// Build the native Twitch chat embed URL, reusing the broadcaster name and parent
+// resolution already used by the Twitch player preview. Returns null until the
+// channel name is known (caller then awaits _ensureBroadcasterName()).
+function _buildTwitchChatUrl(){
+  const ch = (window.__broadcasterName) || _getCachedChannel();
+  if(!ch) return null;
+  const parent = window.location.hostname;
+  return `https://www.twitch.tv/embed/${encodeURIComponent(ch)}/chat?parent=${encodeURIComponent(parent)}&darkpopout`;
+}
+
+function _loadUnifiedChatEmbed() {
     const chatContainer = document.getElementById('chat-container');
     if (!chatContainer) return;
     const iframe = document.createElement('iframe');
     iframe.id = 'twitch-chat-iframe';
     iframe.src = UNIFIED_CHAT_EMBED_URL;
+    chatContainer.innerHTML = '';
+    chatContainer.appendChild(iframe);
+    _chatIframeEl = iframe;
+    _chatEmbedMounted = true;
+    _chatEmbedReady = true;
+}
+
+async function _loadTwitchChatEmbed() {
+    const chatContainer = document.getElementById('chat-container');
+    if (!chatContainer) return;
+    let url = _buildTwitchChatUrl();
+    if (!url) {
+        await _ensureBroadcasterName();
+        // The user may have left the Chat tab or flipped to unified during the fetch.
+        if (!_chatTabActive || _chatModeIsUnified()) return;
+        url = _buildTwitchChatUrl();
+    }
+    if (!url) {
+        // Channel info briefly unavailable: show a loading card and recheck once.
+        _renderEmbedWaiting(chatContainer, 'Loading Twitch chat…');
+        _chatIframeEl = null;
+        _chatEmbedMounted = false;
+        _chatEmbedReady = false;
+        _clearUnifiedChatRetryTimer();
+        _chatRetryTimer = setTimeout(() => {
+            _chatRetryTimer = null;
+            if (_chatTabActive && !_chatModeIsUnified() && !_chatEmbedMounted) _loadTwitchChatEmbed();
+        }, UNIFIED_CHAT_RETRY_MS);
+        return;
+    }
+    const iframe = document.createElement('iframe');
+    iframe.id = 'twitch-chat-iframe';
+    iframe.src = url;
+    iframe.setAttribute('title', 'Twitch chat');
+    iframe.loading = 'lazy';
     chatContainer.innerHTML = '';
     chatContainer.appendChild(iframe);
     _chatIframeEl = iframe;
@@ -797,6 +861,7 @@ function _scheduleBelaboxRetry(){
 
 function _pollUnifiedChatReadiness(){
   if(!_chatTabActive || _chatReadyRequestInFlight) return;
+  if(!_chatModeIsUnified()){ _clearUnifiedChatRetryTimer(); return; }
   _chatReadyRequestInFlight = true;
   fetch('/api/unified_chat_ready', { cache: 'no-store' })
     .then(res => res.ok ? res.json() : Promise.reject())
@@ -805,7 +870,7 @@ function _pollUnifiedChatReadiness(){
       const ready = !!(data && data.ready);
       if(ready){
         if(!_chatEmbedMounted){
-          loadTwitchChat();
+          _loadUnifiedChatEmbed();
         }
         _chatEmbedReady = true;
       } else {
@@ -882,6 +947,17 @@ function _resetUnifiedChatEmbedState(showWaiting = false){
   }
 }
 
+// Tear down the current chat embed when switching Twitch<->unified, without
+// painting the unified "waiting for stream" card (so a switch to Twitch is clean).
+function _resetChatEmbedForModeSwitch(){
+  _clearUnifiedChatRetryTimer();
+  _chatIframeEl = null;
+  _chatEmbedMounted = false;
+  _chatEmbedReady = false;
+  const chatContainer = document.getElementById('chat-container');
+  if(chatContainer) chatContainer.innerHTML = '';
+}
+
 function _resetBelaboxEmbedState(showWaiting = false){
   _clearBelaboxRetryTimer();
   _belaboxIframeEl = null;
@@ -899,18 +975,30 @@ function _resetBelaboxEmbedState(showWaiting = false){
   }
 }
 
+// Single decision point: mount the embed that matches the toggle state.
+function _mountChatEmbed(){
+  if(!_chatTabActive) return;
+  if(_chatModeIsUnified()){
+    _pollUnifiedChatReadiness();
+  } else {
+    // Twitch chat is stream-independent; keep an existing mount in place.
+    if(_chatEmbedMounted) return;
+    _clearUnifiedChatRetryTimer();
+    _loadTwitchChatEmbed();
+  }
+}
+
 function _handleUnifiedChatTabVisibility(active){
   _chatTabActive = !!active;
   if(!_chatTabActive){
     _clearUnifiedChatRetryTimer();
     return;
   }
-  if(_chatEmbedMounted && _chatEmbedReady){
-    _pollUnifiedChatReadiness();
-    return;
+  if(_chatModeIsUnified() && !(_chatEmbedMounted && _chatEmbedReady)){
+    // Paint the unified waiting card immediately while readiness is polled.
+    _renderUnifiedChatWaiting();
   }
-  _renderUnifiedChatWaiting();
-  _pollUnifiedChatReadiness();
+  _mountChatEmbed();
 }
 
 function _handleBelaboxTabVisibility(active){
@@ -950,12 +1038,15 @@ function checkStreamStatus() {
         if (isStreamingNow) {
           if (_chatbotAutoStartEnabled) _startChatbot();
           if (_unifiedChatAutoStartEnabled) _startUnifiedChat();
-          if (_chatTabActive) _pollUnifiedChatReadiness();
+          if (_chatTabActive) _mountChatEmbed();
         } else {
           _stopChatbot();
           _stopUnifiedChat();
           _stopUptime();
-          _resetUnifiedChatEmbedState(_chatTabActive);
+          // Twitch chat is stream-independent; only the unified embed resets on stop.
+          if(_chatModeIsUnified()){
+            _resetUnifiedChatEmbedState(_chatTabActive);
+          }
         }
         lastStreaming = isStreamingNow;
       }
@@ -1879,8 +1970,13 @@ function stopStream() {
         _syncChatbotToggleUI();
       }
       if(typeof j.unified_chat_autostart === 'boolean' && Date.now() > _unifiedChatPrefHoldUntil){
+        const _prevUnified = _unifiedChatAutoStartEnabled;
         _unifiedChatAutoStartEnabled = j.unified_chat_autostart;
         _syncUnifiedChatToggleUI();
+        if(_prevUnified !== _unifiedChatAutoStartEnabled && _chatTabActive){
+          _resetChatEmbedForModeSwitch();
+          _mountChatEmbed();
+        }
       }
       // Chatbot mapping
       upd('hc-chatbot', j.chatbot_state || 'offline', j.chatbot_state);
