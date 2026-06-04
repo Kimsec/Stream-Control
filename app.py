@@ -63,14 +63,20 @@ STREAMELEMENTS_OVERLAY_URL = os.getenv("STREAMELEMENTS_OVERLAY_URL", "").strip()
 
 # Base URL for the PWA/app icons + favicon (e.g. https://assets.example.com/icons).
 # The app builds <base>/icon-192.png, <base>/icon_logo.png, etc. from this.
-# Leave empty to omit all icons and the web manifest icons (the app still works).
+# Leave empty to fall back to the bundled static/logo.png everywhere.
 PWA_ICON_BASE_URL = os.getenv("PWA_ICON_BASE_URL", "").strip().rstrip("/")
 
 
 @app.context_processor
 def inject_pwa_assets():
-    # Exposes pwa_icon_base_url to every template (control/login/bans/manifest).
-    return {"pwa_icon_base_url": PWA_ICON_BASE_URL}
+    # Icons use PWA_ICON_BASE_URL when set, else the bundled static/logo.png.
+    icon = f"{PWA_ICON_BASE_URL}/icon_logo.png" if PWA_ICON_BASE_URL else "/static/logo.png"
+    apple = f"{PWA_ICON_BASE_URL}/icon-192.png" if PWA_ICON_BASE_URL else "/static/logo.png"
+    return {
+        "pwa_icon_base_url": PWA_ICON_BASE_URL,
+        "app_icon_url": icon,
+        "apple_touch_icon_url": apple,
+    }
 
 
 BAN_MAX_ATTEMPTS       = int(os.getenv("BAN_MAX_ATTEMPTS", "3"))
