@@ -37,6 +37,15 @@
       "purpose": "maskable"
     }
   ],
+  {% else %}
+  "icons": [
+    {
+      "src": "{{ url_for('static', filename='logo.png') }}",
+      "sizes": "320x320",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
   {% endif %}
   "shortcuts": [
     {
