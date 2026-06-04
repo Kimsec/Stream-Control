@@ -1,5 +1,5 @@
 <p align="center">
-  <img width="220" src="Screenshots/logo.png" alt="Stream Control Logo">
+  <img width="220" src="static/logo.png" alt="Stream Control Logo">
 </p>
 
 <h1 align="center">Stream Control & Stream Guard</h1>
