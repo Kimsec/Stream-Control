@@ -9,10 +9,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Stream Control">
-    {% if pwa_icon_base_url %}
-    <link rel="apple-touch-icon" sizes="192x192" href="{{ pwa_icon_base_url }}/icon-192.png">
-    <link rel="icon" type="image/png" href="{{ pwa_icon_base_url }}/icon_logo.png" />
-    {% endif %}
+    <link rel="apple-touch-icon" sizes="192x192" href="{{ apple_touch_icon_url }}">
+    <link rel="icon" type="image/png" href="{{ app_icon_url }}">
     <link rel="manifest" href="{{ url_for('manifest') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
