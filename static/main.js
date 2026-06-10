@@ -1135,6 +1135,7 @@ checkMiniPCStatus();
 
 const audioBanner = document.getElementById('audio-permission-banner');
 const alertIframe = document.getElementById('alertbox-iframe');
+const soundAlertsIframe = document.getElementById('soundalerts-iframe');
 
 function requestAudioPermission() {
   try {
@@ -1155,6 +1156,14 @@ function requestAudioPermission() {
 
     // If already loaded (or no data-src), attempt immediately too.
     alertIframe?.contentWindow?.postMessage({ type: 'unlock-audio' }, '*');
+
+    // Sound Alerts (channel-point TTS): load after the user gesture so its audio can autoplay.
+    if (soundAlertsIframe) {
+      const saSrc = soundAlertsIframe.getAttribute('data-src') || '';
+      if (saSrc && soundAlertsIframe.getAttribute('src') !== saSrc) {
+        soundAlertsIframe.setAttribute('src', saSrc);
+      }
+    }
   } catch (e) {
     console.error('Error activating audio:', e);
   } finally {

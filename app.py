@@ -60,6 +60,7 @@ BELABOX_EMBED_URL = os.getenv("BELABOX_EMBED_URL", "").strip()
 UNIFIED_CHAT_EMBED_URL = os.getenv("UNIFIED_CHAT_EMBED_URL", "").strip()
 SRT_LINK_URL = os.getenv("SRT_LINK_URL", "").strip()
 STREAMELEMENTS_OVERLAY_URL = os.getenv("STREAMELEMENTS_OVERLAY_URL", "").strip()
+SOUNDALERTS_URL = os.getenv("SOUNDALERTS_URL", "").strip()
 
 # Base URL for the PWA/app icons + favicon (e.g. https://assets.example.com/icons).
 # The app builds <base>/icon-192.png, <base>/icon_logo.png, etc. from this.
@@ -344,7 +345,8 @@ def home():
                            belabox_embed_url=BELABOX_EMBED_URL,
                            unified_chat_embed_url=UNIFIED_CHAT_EMBED_URL,
                            srt_link_url=SRT_LINK_URL,
-                           streamelements_overlay_url=STREAMELEMENTS_OVERLAY_URL)
+                           streamelements_overlay_url=STREAMELEMENTS_OVERLAY_URL,
+                           soundalerts_url=SOUNDALERTS_URL)
 
 @app.route('/bans')
 @login_required
