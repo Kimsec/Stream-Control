@@ -81,7 +81,6 @@ def _h_snapshot() -> dict[str, Any]:
 
 
 def _current_user_token() -> str:
-    # Prøv fil (oppdatert av app.py på refresh)
     try:
         with open(TWITCH_TOKENS_PATH, "r", encoding="utf-8") as f:
             js = json.load(f)
@@ -130,7 +129,6 @@ async def _eventsub_subscribe_raid(http: aiohttp.ClientSession, session_id: str)
             return True
 
         if r.status == 401:
-            # user-token kan ha endret seg – les på nytt og prøv én gang til
             print("[RaidGuard] 401 unauthorized - token may be expired; retrying with latest token...")
             token = _current_user_token()
             headers["Authorization"] = f"Bearer {token}" if token else ""
@@ -169,7 +167,7 @@ async def _eventsub_subscribe_chat(http: aiohttp.ClientSession, session_id: str)
         "version": "1",
         "condition": {
             "broadcaster_user_id": TWITCH_BROADCASTER_ID,
-            "user_id": TWITCH_BROADCASTER_ID  # listen as the broadcaster user
+            "user_id": TWITCH_BROADCASTER_ID
         },
         "transport": {"method": "websocket", "session_id": session_id},
     }
@@ -208,7 +206,6 @@ async def _chat_guard():
     if not (TWITCH_CLIENT_ID and TWITCH_BROADCASTER_ID):
         print("[ChatGuard] missing TWITCH_* vars; disabled")
         return
-    # Don't exit permanently if token missing; wait until it appears
     ws_url = EVENTSUB_WS
     next_resub_attempt = 0.0
 
@@ -225,7 +222,7 @@ async def _chat_guard():
             async with aiohttp.ClientSession() as http:
                 async with http.ws_connect(ws_url, autoping=True) as ws:
                     session_id = None
-                    keepalive_timeout = 35.0  # default until welcome arrives
+                    keepalive_timeout = 35.0
                     _h_set("chat_ws", True)
                     _h_set("chat_subscribed", False)
 
@@ -320,7 +317,7 @@ async def _raid_watcher():
     # Instead of exiting if token missing, wait until it appears so service recovers after outages.
     ws_url = EVENTSUB_WS
     next_resub_attempt = 0.0
-    last_raid_ts_box = {"ts": 0.0}  # mutable holder for debounce timestamp
+    last_raid_ts_box = {"ts": 0.0}
     while True:
         if not _current_user_token():
             _h_set("raid_ws", False)
@@ -462,18 +459,15 @@ def connect_obs() -> ReqClient:
 
 
 def is_streaming(cl: ReqClient) -> bool:
-    # Let exceptions bubble so the caller can reconnect
     status = cl.get_stream_status()
     return bool(status.output_active)
 
 
 def get_current_scene(cl: ReqClient) -> str:
-    # Let exceptions bubble
     return cl.get_current_program_scene().current_program_scene_name
 
 
 def switch_scene(cl: ReqClient, scene: str) -> None:
-    # Let exceptions bubble
     cl.set_current_program_scene(scene)
 
 
@@ -495,7 +489,6 @@ def _obs_start_and_switch(scene: str) -> bool:
                 c.start_stream()
                 print("[ChatGuard][OBS] Stream started.")
         except Exception as e:
-            # Hvis allerede live, fortsetter vi bare å bytte scene
             print("[ChatGuard][OBS] start_stream err (may already be live):", e)
         switch_scene(c, scene)
         return True
@@ -515,7 +508,6 @@ def _obs_fix_brb_then_live(brb_scene: str, live_scene: str, delay_sec: float = 2
         return False
 
 def _obs_stop_stream() -> bool:
-    """Stop stream (if active) and switch to OFFLINE_SCENE_NAME."""
     try:
         c = connect_obs()
         # Stop stream if active
@@ -539,7 +531,7 @@ def _obs_stop_stream() -> bool:
         print("[ChatGuard][OBS] stop_stream failed:", e)
         return False
 
-# --- Bitrate fetch and parsing ---
+# Bitrate fetch and parsing
 def _find_numbers_by_keys(d: Any, key_hints=("bitrate", "kbps", "bw", "bandwidth")) -> list[int]:
     out: list[int] = []
     if isinstance(d, dict):
@@ -605,13 +597,9 @@ class _HealthHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-_HEALTH_HTTPD = None  # global ref for graceful shutdown
+_HEALTH_HTTPD = None
 
 def start_health_server(port=8765, max_retries: int = 20, retry_delay: float = 0.25):
-    """Start health server with retry + graceful shutdown.
-
-    Handles fast systemd restarts where previous process socket still in TIME_WAIT.
-    """
     class _ReuseTCPServer(socketserver.TCPServer):
         allow_reuse_address = True
 
@@ -630,11 +618,10 @@ def start_health_server(port=8765, max_retries: int = 20, retry_delay: float = 0
         finally:
             _HEALTH_HTTPD = None
 
-    def _signal_handler(signum, frame):  # pragma: no cover
+    def _signal_handler(signum, frame):
         _close_server()
         raise SystemExit(0)
 
-    # Register exit hooks once
     try:
         signal.signal(signal.SIGTERM, _signal_handler)
     except Exception:
