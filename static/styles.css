@@ -194,7 +194,7 @@ body {
     text-align: center;
 }
 button {
-    font-size: 1.5rem; /* Bruk rem for å skalere basert på root-font-størrelse */
+    font-size: 1.5rem;
     padding: 1rem 2rem;
     margin: 10px;
     border-radius: 10px;
@@ -213,7 +213,7 @@ button {
         padding: 0.5rem 1rem;
     }
 }
-/* Faner (Tabs) styling */
+
 .tab-container {
     display: flex;
     justify-content: center;
@@ -291,11 +291,9 @@ button {
 .tab-content.active {
     display: block;
 }
-/* Chat-spesifikk styling for å fjerne padding */
 #chat.tab-content {
     padding: 0;
 }
-/* Generell styling for knapper og status */
 .button-container {
     display: flex;
     flex-direction: column;
@@ -467,8 +465,6 @@ color: #ff3b3b;
 .tooltip-button:hover {
     color: #ffffff;
 }
-
-/* Specific override for platforms help (?) button */
 #platformsHelp {
     margin: 0;
     padding: 0 2px;
@@ -476,19 +472,17 @@ color: #ff3b3b;
     border: none;
     box-shadow: none;
     line-height: 1;
-    text-decoration: none; /* remove underline if unwanted */
+    text-decoration: none;
     color: #9aa0a6;
 }
 
 #platformsHelp:hover {
     color: #fff;
 }
-
 #platformsHelp:focus-visible {
     outline: 2px solid #4a90e2;
     outline-offset: 2px;
 }
-
 .tooltip-panel {
     box-sizing: border-box;
     position: absolute;
@@ -511,7 +505,6 @@ color: #ff3b3b;
     -webkit-backdrop-filter: blur(3px);
     animation: tooltipFade .22s ease;
 }
-
 .tooltip-panel strong {
     color: #fff;
     font-weight: 600;
