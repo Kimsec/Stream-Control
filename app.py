@@ -479,9 +479,6 @@ def obs_stream_status():
 
         resp_sc = cl.get_current_program_scene()
         current_scene = resp_sc.current_program_scene_name
-
-        # Removed verbose logging - enable for debugging if needed
-        # print(f"[OBS] Streaming: {is_streaming}; Scene: {current_scene}")
         out = {
             "isStreaming": is_streaming,
             "currentScene": current_scene,
@@ -586,8 +583,8 @@ def update_category():
             "Content-Type": "application/json"
         }
         payload = {
-            "game_id": category_id,  # Oppdaterer kategorien med ID
-            "title": new_title       # Oppdaterer tittelen
+            "game_id": category_id,
+            "title": new_title
         }
 
         response = requests.patch(url, headers=headers, json=payload)
@@ -623,7 +620,7 @@ def get_channel_info():
             broadcaster_name = channel_data.get('broadcaster_name', '')
             return jsonify({
                 "title": title,
-                "category": {"name": category, "id": category_id},  # Returner kategori som objekt
+                "category": {"name": category, "id": category_id},
                 "broadcaster_name": broadcaster_name
             })
         else:
@@ -835,7 +832,7 @@ def _sync_unified_chat_for_stream(is_streaming: bool):
 @login_required
 def bot_start():
     try:
-        _systemctl_unit("restart", CHATBOT_SERVICE_NAME)  # restart = "start if not running, else reload"
+        _systemctl_unit("restart", CHATBOT_SERVICE_NAME)
         return jsonify({"ok": True})
     except Exception as e:
         return (f"start error: {e}", 500)
@@ -1025,10 +1022,6 @@ def preview_hls(subpath: str):
     """Serve HLS playlists and segments from HLS_ROOT.
     Paths are resolved relative to HLS_ROOT and constrained to prevent traversal."""
     try:
-        # Only allow under HLS_ROOT
-        # Use send_from_directory with directory=HLS_ROOT and file=subpath
-        # Set appropriate MIME types and disable caching
-        # Infer mimetype by extension
         lower = subpath.lower()
         if lower.endswith('.m3u8'):
             mimetype = 'application/vnd.apple.mpegurl'
@@ -1040,7 +1033,6 @@ def preview_hls(subpath: str):
         # Ensure path is safe; will raise if invalid
         _safe_hls_path(subpath)
         resp = send_from_directory(HLS_ROOT, subpath, mimetype=mimetype, conditional=True)
-        # No cache for live content
         resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
         resp.headers['Pragma'] = 'no-cache'
         resp.headers['Expires'] = '0'
@@ -1128,7 +1120,7 @@ def _ws_require_login(ws) -> bool:
     if session.get('authenticated'):
         return True
     try:
-        ws.close(1008, "Authentication required")  # 1008 = Policy Violation
+        ws.close(1008, "Authentication required")
     except Exception:
         pass
     return False
